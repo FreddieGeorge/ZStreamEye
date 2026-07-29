@@ -27,6 +27,7 @@ constexpr Luma4x4CoeffAbsLevelPrefixContext Luma4x4CoeffAbsLevelAdditionalPrefix
     {Luma4x4CoeffAbsLevelMinus1ThirdCtxIdx, "third", false},
     {Luma4x4CoeffAbsLevelMinus1FourthCtxIdx, "fourth", false},
     {Luma4x4CoeffAbsLevelMinus1FifthCtxIdx, "fifth", false},
+    {Luma4x4CoeffAbsLevelMinus1FifthCtxIdx, "sixth", false},
 };
 
 constexpr const char *Luma4x4CoeffAbsLevelSuffixBinNames[] = {
