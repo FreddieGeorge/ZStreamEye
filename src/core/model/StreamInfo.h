@@ -25,6 +25,8 @@ struct MediaStreamInfo
     int sampleRate = 0;
     int channels = 0;
     bool selected = false;
+    int timeBaseNum = 0;
+    int timeBaseDen = 0;
 };
 
 struct StreamInfo
@@ -49,6 +51,8 @@ struct StreamInfo
     int channels = 0;
     QVector<MediaStreamInfo> streams;
     bool isValid = false;
+    int timeBaseNum = 0;
+    int timeBaseDen = 0;
 };
 
 Q_DECLARE_METATYPE(StreamInfo)

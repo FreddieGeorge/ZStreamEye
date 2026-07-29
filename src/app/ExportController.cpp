@@ -175,7 +175,7 @@ void ExportController::exportScreenshot(VideoCanvas *videoCanvas, const QString 
         return;
     }
 
-    const QImage image = videoCanvas->grabFramebuffer();
+    const QImage image = videoCanvas->grab().toImage();
     if (image.isNull() || !image.save(filePath)) {
         error(tr("Failed to export screenshot: %1").arg(QDir::toNativeSeparators(filePath)));
         return;

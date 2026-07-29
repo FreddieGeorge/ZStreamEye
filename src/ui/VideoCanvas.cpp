@@ -1,11 +1,14 @@
 #include "ui/VideoCanvas.h"
 
 #include <QColor>
-#include <QFont>
+#include <QFrame>
+#include <QGridLayout>
+#include <QLabel>
 #include <QLineF>
 #include <QOpenGLShader>
 #include <QPainter>
 #include <QPainterPath>
+#include <QResizeEvent>
 
 #include <algorithm>
 #include <cmath>
@@ -26,6 +29,8 @@ VideoCanvas::VideoCanvas(QWidget *parent)
     setMinimumSize(320, 240);
     setAutoFillBackground(false);
     m_overlayMessage = tr("Open an H.264 stream to begin.");
+    createOverlayWidgets();
+    setOverlayMessage(m_overlayMessage);
 }
 
 VideoCanvas::~VideoCanvas()
@@ -48,7 +53,33 @@ VideoCanvas::~VideoCanvas()
 void VideoCanvas::setOverlayMessage(const QString &message)
 {
     m_overlayMessage = message;
+    if (m_overlayMessageLabel != nullptr) {
+        m_overlayMessageLabel->setText(message);
+    }
+    updateOverlayWidgetVisibility();
+    updateOverlayWidgetGeometry();
     update();
+}
+
+void VideoCanvas::setPlaybackInfo(const QString &timestamp,
+                                  const QString &bitRate,
+                                  const QString &resolution,
+                                  const QString &codec)
+{
+    m_timestampValueLabel->setText(timestamp);
+    m_bitRateValueLabel->setText(bitRate);
+    m_resolutionValueLabel->setText(resolution);
+    m_codecValueLabel->setText(codec);
+    m_codecValueLabel->setToolTip(codec);
+    m_hasPlaybackInfo = true;
+    updateOverlayWidgetVisibility();
+    updateOverlayWidgetGeometry();
+}
+
+void VideoCanvas::clearPlaybackInfo()
+{
+    m_hasPlaybackInfo = false;
+    updateOverlayWidgetVisibility();
 }
 
 void VideoCanvas::setFrame(const DecodedVideoFramePtr &frame)
@@ -56,7 +87,12 @@ void VideoCanvas::setFrame(const DecodedVideoFramePtr &frame)
     m_currentFrame = frame;
     if (m_currentFrame) {
         m_overlayMessage.clear();
+        if (m_overlayMessageLabel != nullptr) {
+            m_overlayMessageLabel->clear();
+        }
     }
+    updateOverlayWidgetVisibility();
+    updateOverlayWidgetGeometry();
     update();
 }
 
@@ -82,6 +118,12 @@ void VideoCanvas::setShowMotionVectors(bool enabled)
 {
     m_showMotionVectors = enabled;
     update();
+}
+
+void VideoCanvas::setShowPlaybackInfo(bool enabled)
+{
+    m_showPlaybackInfo = enabled;
+    updateOverlayWidgetVisibility();
 }
 
 void VideoCanvas::setOverlayOpacity(float opacity)
@@ -128,7 +170,12 @@ void VideoCanvas::paintGL()
         drawAnalysisOverlay();
     }
 
-    paintOverlayText();
+}
+
+void VideoCanvas::resizeEvent(QResizeEvent *event)
+{
+    QOpenGLWidget::resizeEvent(event);
+    updateOverlayWidgetGeometry();
 }
 
 void VideoCanvas::ensureTexture()
@@ -168,7 +215,7 @@ bool VideoCanvas::uploadCurrentFrame()
         nullptr);
 
     if (m_swsContext == nullptr) {
-        m_overlayMessage = tr("Unable to create sws_scale conversion context.");
+        setOverlayMessage(tr("Unable to create sws_scale conversion context."));
         return false;
     }
 
@@ -213,6 +260,7 @@ bool VideoCanvas::uploadCurrentFrame()
     glBindTexture(GL_TEXTURE_2D, 0);
 
     m_textureSize = QSize(m_currentFrame->width, m_currentFrame->height);
+    updateOverlayWidgetGeometry();
     return true;
 }
 
@@ -384,24 +432,90 @@ void VideoCanvas::drawMotionVectors(QPainter &painter, const QRectF &videoRect)
     painter.restore();
 }
 
-void VideoCanvas::paintOverlayText()
+void VideoCanvas::createOverlayWidgets()
 {
-    if (m_overlayMessage.isEmpty() && m_currentFrame) {
-        return;
+    m_overlayMessageLabel = new QLabel(this);
+    m_overlayMessageLabel->setObjectName(QStringLiteral("VideoOverlayMessage"));
+    m_overlayMessageLabel->setAlignment(Qt::AlignCenter);
+    m_overlayMessageLabel->setWordWrap(true);
+    m_overlayMessageLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
+    m_overlayMessageLabel->setStyleSheet(
+        QStringLiteral("QLabel#VideoOverlayMessage {"
+                       " color: white; background-color: rgba(12, 15, 18, 205);"
+                       " border: 1px solid rgba(255, 255, 255, 45); border-radius: 6px;"
+                       " padding: 12px; font-weight: 600; }"));
+
+    m_playbackInfoPanel = new QFrame(this);
+    m_playbackInfoPanel->setObjectName(QStringLiteral("PlaybackInfoOverlay"));
+    m_playbackInfoPanel->setAttribute(Qt::WA_TransparentForMouseEvents);
+    m_playbackInfoPanel->setStyleSheet(
+        QStringLiteral("QFrame#PlaybackInfoOverlay {"
+                       " background-color: rgba(12, 15, 18, 210);"
+                       " border: 1px solid rgba(255, 255, 255, 45); border-radius: 6px; }"
+                       "QLabel[role=caption] { color: rgba(220, 225, 230, 190); }"
+                       "QLabel[role=value] { color: white; font-weight: 600; }"));
+
+    auto *layout = new QGridLayout(m_playbackInfoPanel);
+    layout->setContentsMargins(12, 9, 12, 9);
+    layout->setHorizontalSpacing(14);
+    layout->setVerticalSpacing(4);
+
+    const auto addRow = [this, layout](int row, const QString &caption, QLabel **valueLabel) {
+        auto *captionLabel = new QLabel(caption, m_playbackInfoPanel);
+        captionLabel->setProperty("role", QStringLiteral("caption"));
+        auto *value = new QLabel(QStringLiteral("-"), m_playbackInfoPanel);
+        value->setProperty("role", QStringLiteral("value"));
+        value->setTextInteractionFlags(Qt::NoTextInteraction);
+        layout->addWidget(captionLabel, row, 0);
+        layout->addWidget(value, row, 1);
+        *valueLabel = value;
+    };
+    addRow(0, tr("Time"), &m_timestampValueLabel);
+    addRow(1, tr("Frame bitrate"), &m_bitRateValueLabel);
+    addRow(2, tr("Resolution"), &m_resolutionValueLabel);
+    addRow(3, tr("Codec"), &m_codecValueLabel);
+    layout->setColumnStretch(1, 1);
+    m_playbackInfoPanel->hide();
+}
+
+void VideoCanvas::updateOverlayWidgetGeometry()
+{
+    if (m_overlayMessageLabel != nullptr && !m_overlayMessage.isEmpty()) {
+        const int availableWidth = std::max(120, width() - 48);
+        const int labelWidth = std::min(560, availableWidth);
+        m_overlayMessageLabel->setFixedWidth(labelWidth);
+        m_overlayMessageLabel->adjustSize();
+        const QSize labelSize(labelWidth, m_overlayMessageLabel->height());
+        m_overlayMessageLabel->setGeometry(
+            (width() - labelSize.width()) / 2,
+            (height() - labelSize.height()) / 2,
+            labelSize.width(),
+            labelSize.height());
+        m_overlayMessageLabel->raise();
     }
 
-    QPainter painter(this);
-    painter.setRenderHint(QPainter::Antialiasing, true);
-    painter.setPen(Qt::white);
+    if (m_playbackInfoPanel == nullptr || !m_playbackInfoPanel->isVisible()) {
+        return;
+    }
+    const QRectF displayRect = videoDisplayRect();
+    constexpr int Margin = 12;
+    const int availableWidth = std::max(160, static_cast<int>(displayRect.width()) - Margin * 2);
+    const int panelWidth = std::min(310, availableWidth);
+    m_playbackInfoPanel->setFixedWidth(panelWidth);
+    m_playbackInfoPanel->adjustSize();
+    m_playbackInfoPanel->move(static_cast<int>(displayRect.left()) + Margin,
+                              static_cast<int>(displayRect.top()) + Margin);
+    m_playbackInfoPanel->raise();
+}
 
-    QFont font = painter.font();
-    font.setPointSizeF(font.pointSizeF() + 1.5);
-    font.setBold(true);
-    painter.setFont(font);
-
-    painter.drawText(rect().adjusted(16, 16, -16, -16),
-                     Qt::AlignCenter | Qt::TextWordWrap,
-                     m_overlayMessage);
+void VideoCanvas::updateOverlayWidgetVisibility()
+{
+    if (m_overlayMessageLabel != nullptr) {
+        m_overlayMessageLabel->setVisible(!m_overlayMessage.isEmpty());
+    }
+    if (m_playbackInfoPanel != nullptr) {
+        m_playbackInfoPanel->setVisible(m_showPlaybackInfo && m_hasPlaybackInfo && m_currentFrame);
+    }
 }
 
 QRectF VideoCanvas::videoDisplayRect() const

@@ -42,6 +42,8 @@ MediaStreamInfo mediaStreamInfoFromAvStream(const AVStream *stream, int streamIn
         ? QString::fromUtf8(descriptor->name)
         : QString::fromUtf8(avcodec_get_name(parameters->codec_id));
     streamInfo.bitRate = parameters->bit_rate;
+    streamInfo.timeBaseNum = stream->time_base.num;
+    streamInfo.timeBaseDen = stream->time_base.den;
     streamInfo.durationUs = stream->duration != AV_NOPTS_VALUE
         ? av_rescale_q(stream->duration, stream->time_base, AVRational {1, AV_TIME_BASE})
         : 0;
@@ -159,6 +161,8 @@ void populateSelectedVideoStreamInfo(AVFormatContext *formatContext,
     streamInfo->bitRate = codecContext->bit_rate > 0
         ? codecContext->bit_rate
         : formatContext->bit_rate;
+    streamInfo->timeBaseNum = videoStream->time_base.num;
+    streamInfo->timeBaseDen = videoStream->time_base.den;
     streamInfo->width = codecContext->width;
     streamInfo->height = codecContext->height;
     streamInfo->frameRate = rationalToDouble(rate);

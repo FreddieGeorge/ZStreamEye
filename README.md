@@ -51,7 +51,13 @@ The project currently supports video loading/decoding, controllable playback, H.
   - 16x16 macroblock grid
   - macroblock QP heatmap
   - parsed P-slice motion vectors
-- Toggle grid/QP/MV overlays and adjust overlay opacity.
+- Show an optional playback-information OSD over the video with readable
+  current/total time, current access-unit bitrate, decoded resolution, and
+  codec. A leading `~` marks bitrate estimated from packet size and frame rate
+  when packet duration is unavailable.
+- Toggle grid/QP/MV/playback-information overlays and adjust analysis-overlay
+  opacity. Playback information can be toggled from the overlay toolbar or
+  `View -> Show Playback Info`.
 - Persist window layout, dock positions, overlay toggles, opacity, and recent open/export directories.
 - Export selected access-unit syntax JSON, access-unit list CSV, screenshots
   with overlays, and all decoded access-unit syntax JSON with schema/version
@@ -69,9 +75,9 @@ Current limitations:
   HEVC slice-header parsing.
 - CABAC, B_Direct/B_8x8 motion vectors, and MBAFF/FMO are reported as unsupported or partially parsed; CAVLC P_8x8/P_8x8ref0 L0 and non-direct B_L0/B_L1/Bi motion vectors have focused parser coverage and regression fixtures.
 - The property tree limits displayed macroblocks to keep playback responsive; overlay data still uses the parsed macroblock list.
-- OpenGL canvas text is intentionally avoided for analysis hints because some
-  Windows/OpenGL deployments render QPainter text incorrectly; use the property
-  tree and status bar for analysis explanations.
+- Text OSD elements are regular Qt child widgets above the OpenGL canvas rather
+  than `QPainter::drawText()` calls inside `paintGL()`, avoiding known text
+  rendering problems on some Windows/OpenGL deployments.
 
 ## Project Structure
 
@@ -110,7 +116,7 @@ Folder responsibilities:
 
 - `src/app`: application window, menu, toolbar, dock layout, file opening, export/update controllers, `AnalysisStore`, `DecodeSession`, and workflow wiring.
 - `src/core/model`: stream metadata, media types, decoded frame/seek models, frame analysis data, and document state.
-- `src/core/analysis`: codec-neutral aggregation and statistics over parsed access units.
+- `src/core/analysis`: codec-neutral playback metrics, aggregation, and statistics over parsed access units.
 - `src/core/parser`: codec-neutral parser interface plus audio and video parser modules.
 - `src/core/util`: codec-neutral low-level helpers for bit reading, bytestreams, and RBSP/packet bit-range mapping.
 - `src/core/decode`: FFmpeg decoder wrapper plus staged decode helpers for stream probing, parser creation, packet raw-data capture, decode-loop orchestration, event sinks, seek planning, rebuffer tracking, frame pacing, checkpoint emission, pending-access-unit dispatch, first-frame pause control, and decoded-frame dispatch.
@@ -304,7 +310,8 @@ Key modules:
 - `H264Parser`: directly parses H.264 syntax without relying on FFmpeg's parser.
 - `ParserFactory` and `PacketRawDataBuilder`: keep parser instantiation and packet evidence capture out of `FFmpegDecoder`.
 - `H264SyntaxJsonWriter` and `H264PropertyTreeBuilder`: keep JSON export and property-tree presentation out of decoder/parser internals.
-- `VideoCanvas`: renders video frames and analysis overlays.
+- `VideoCanvas`: renders video frames and shape overlays, and hosts the stable
+  widget-based playback/status OSD above the OpenGL surface.
 - `FrameListView` and `PropertyTreeView`: display parsed access units, packet
   metadata, and syntax information.
 - `BitstreamHexView`: displays selected access-unit packet bytes in bounded

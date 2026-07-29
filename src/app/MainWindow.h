@@ -81,6 +81,7 @@ private:
     void updatePlaybackActionState();
     void updateExportActionState();
     void updateFrameIndexDisplay();
+    void updatePlaybackInfo(const AnalysisStore::CachedFrame &cachedFrame);
     void scheduleStatsDockUpdate();
     void updateStatsDock();
     void updateCurrentOverlayStatusHint();
@@ -106,6 +107,7 @@ private:
     QAction *m_showGridAction = nullptr;
     QAction *m_showQpHeatmapAction = nullptr;
     QAction *m_showMotionVectorsAction = nullptr;
+    QAction *m_showPlaybackInfoAction = nullptr;
     QSlider *m_overlayOpacitySlider = nullptr;
     QLabel *m_frameIndexLabel = nullptr;
     QTimer *m_statsUpdateTimer = nullptr;

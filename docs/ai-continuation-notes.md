@@ -87,7 +87,7 @@ Important H.264 files:
   coded-block-flag contexts, and the luma4x4
   `significant_coeff_flag` ctxIdx 134-148 and
   `last_significant_coeff_flag` ctxIdx 166-180 contexts plus the
-  first through fifth luma4x4 `coeff_abs_level_minus1` prefix contexts used
+  first through sixth luma4x4 `coeff_abs_level_minus1` prefix bins used
   by the narrow CABAC paths and near-term residual work.
 - `cabac/H264CabacDecoder.*`: CABAC arithmetic-decoder foundation.
 - `cabac/H264CabacSyntaxTypes.h`: shared result structs for CABAC syntax
@@ -117,7 +117,8 @@ Important H.264 files:
   if the last flag is one reads the first
   `coeff_abs_level_minus1` prefix bin with ctxIdx 248. If that first prefix
   bin is one, it reads one additional prefix bin with ctxIdx 252, third and
-  fourth prefix bins with ctxIdx 253-254, and a fifth prefix bin with ctxIdx 255. If any
+  fourth prefix bins with ctxIdx 253-254, plus fifth and sixth prefix bins that
+  reuse ctxIdx 255. If any
   covered prefix step reaches a zero terminal bin, it reads one bypass
   `coeff_sign_flag` and then stops at `residual_coefficients`; if the covered
   prefix bins do not terminate, the next unsupported stage remains the rest of
@@ -231,12 +232,15 @@ Important H.264 files:
   fixed-input-recognized/pre-UEG0 remaining-input flags.
   Prefix-bin context checks, bin decoding, and diagnostic
   messages are centralized in the residual reader so adding the next prefix
-  context does not duplicate the first/next/third/fourth/fifth-bin plumbing.
+  step does not duplicate the first/next/third/fourth/fifth/sixth-bin plumbing.
   Reader-level and macroblock-level regression tests now lock that large
   terminated-prefix boundary before sign-flag parsing.
-  The additional covered prefix contexts are table-driven after the first bin,
-  so the next prefix expansion should extend that small context table plus
-  tests. The reader consumes only the first two coefficients in that reverse
+  The additional covered prefix contexts are table-driven after the first bin.
+  The sixth step reuses ctxIdx 255 and has reader tests for both zero
+  termination (`prefixOneCount == 5`, nine pre-UEG0 prefix bins remaining) and
+  one continuation (`prefixOneCount == 6`). The next prefix expansion should
+  add a seventh ctxIdx 255 step plus tests. The reader consumes only the first
+  two coefficients in that reverse
   order. Chroma non-zero CBF, complete
   significant/last maps, complete
   coefficient level parsing, suffix parsing, and non-zero coefficient completion are
@@ -271,7 +275,7 @@ Current H.264 limitations:
   contexts, `mb_qp_delta`, luma4x4/chroma DC residual `coded_block_flag`
   contexts, and luma4x4 `significant_coeff_flag` ctxIdx 134-148 and
   `last_significant_coeff_flag` ctxIdx 166-180 contexts plus the first through
-  fifth luma4x4 `coeff_abs_level_minus1` prefix contexts.
+  sixth luma4x4 `coeff_abs_level_minus1` prefix bins.
   The CABAC macroblock entry point has a syntax-result boundary for supported
   I/P `mb_type` and narrow P_8x8
   `sub_mb_type`/`ref_idx_l0 == 0`/small `mvd_l0` scaffolding. The P_8x8 path
@@ -338,6 +342,26 @@ The deployment script writes its own release build under
 `build-deploy-msys2-ucrt` and package output under `dist/`. Do not distribute a
 `ZStreamEye.exe` directly from any build directory.
 
+### User-Facing Windows Verification Rule
+
+- Always give users the deployed executable below for manual verification:
+  `D:\Desktop\ZStreamEye\dist\ZStreamEye-windows-ucrt64\ZStreamEye.exe`.
+- After a user-facing change, regenerate the portable package with
+  `scripts/deploy-windows-msys2.ps1` before asking the user to verify it. Do not
+  point users at an executable whose deployment directory has not been
+  refreshed for the current change.
+- `build-codex-util` is an incremental development build used for compilation
+  and automated tests. Its root `ZStreamEye.exe` is only the launcher and
+  expects `runtime\ZStreamEyeApp.exe`, which that build directory does not
+  provide in the deployed layout. Do not use it as the user verification app.
+- `build-deploy-msys2-ucrt` is the deployment script's Release build cache. It
+  supplies the binaries that are assembled into `dist`, but is not itself a
+  portable package or a user verification directory.
+- Both build directories may be kept to speed up later incremental builds and
+  may be regenerated if deleted. Only `dist\ZStreamEye-windows-ucrt64` contains
+  the launcher, `runtime\ZStreamEyeApp.exe`, Qt plugins, and required runtime
+  DLLs in the layout intended for launching and distribution.
+
 ## Important Rules
 
 - Do not commit `build*/`, `build-msys2-ucrt/`, `dist/`, or generated package
@@ -392,7 +416,7 @@ Recommended next H.264 direction:
    `last_significant_coeff_flag` skeleton results, inferred final scan-position
    coefficient prefix routing with explicit reverse-scan and inferred-final
    result flags, plus the first `coeff_abs_level_minus1` prefix bin, one
-   additional prefix bin when the first prefix bin is one, third through fifth
+   additional prefix bin when the first prefix bin is one, third through sixth
    prefix bins when the covered prefix bins keep returning one, and one bypass
    `coeff_sign_flag` when the covered prefix bins terminate,
    4:2:0 chroma DC CBF-zero residuals for `coded_block_pattern_chroma == 1`,
@@ -433,8 +457,15 @@ Export/UI:
 
 - `PropertyTreeView` and JSON export should consume stable model data rather
   than scraping UI text or parser internals.
-- Avoid drawing analysis text in `VideoCanvas`; use property/status summaries
-  because some Windows/OpenGL deployments render QPainter text poorly.
+- `VideoCanvas` playback/status OSD text uses regular child widgets above the
+  `QOpenGLWidget`, not `QPainter::drawText()` inside `paintGL()`. Keep text out
+  of the OpenGL painter path because that path rendered unreliably on some
+  Windows deployments. Shape overlays (grid, QP, and motion vectors) remain in
+  the painter path.
+- The optional playback OSD shows the current timestamp, current access-unit
+  bitrate, decoded resolution, and codec. Timestamp conversion uses the
+  selected video stream time base. Bitrate uses packet size and packet duration
+  when available, with a visibly approximate frame-rate fallback.
 - `PropertyTreeView` caps displayed macroblocks for responsiveness; overlay
   data still uses the parsed macroblock list.
 

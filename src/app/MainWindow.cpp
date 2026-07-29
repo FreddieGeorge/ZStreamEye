@@ -12,6 +12,7 @@
 
 #include "core/analysis/AnalysisStats.h"
 #include "core/analysis/BitstreamSearch.h"
+#include "core/analysis/PlaybackMetrics.h"
 
 #include <QAction>
 #include <QCloseEvent>
@@ -353,6 +354,10 @@ void MainWindow::createActions()
     m_showMotionVectorsAction->setCheckable(true);
     m_showMotionVectorsAction->setChecked(false);
 
+    m_showPlaybackInfoAction = new QAction(tr("Show Playback Info"), this);
+    m_showPlaybackInfoAction->setCheckable(true);
+    m_showPlaybackInfoAction->setChecked(true);
+
     setPlaybackControlsEnabled(false);
     updatePlaybackActionState();
     updateExportActionState();
@@ -368,6 +373,8 @@ void MainWindow::createDocks()
             m_videoCanvas, &VideoCanvas::setShowQpHeatmap);
     connect(m_showMotionVectorsAction, &QAction::toggled,
             m_videoCanvas, &VideoCanvas::setShowMotionVectors);
+    connect(m_showPlaybackInfoAction, &QAction::toggled,
+            m_videoCanvas, &VideoCanvas::setShowPlaybackInfo);
     connect(m_showQpHeatmapAction, &QAction::toggled,
             this, &MainWindow::updateCurrentOverlayStatusHint);
     connect(m_showMotionVectorsAction, &QAction::toggled,
@@ -375,6 +382,7 @@ void MainWindow::createDocks()
     m_videoCanvas->setShowGrid(m_showGridAction->isChecked());
     m_videoCanvas->setShowQpHeatmap(m_showQpHeatmapAction->isChecked());
     m_videoCanvas->setShowMotionVectors(m_showMotionVectorsAction->isChecked());
+    m_videoCanvas->setShowPlaybackInfo(m_showPlaybackInfoAction->isChecked());
 
     m_frameListView = new FrameListView;
     m_frameDock = new QDockWidget(tr("AccessUnitListView"), this);
@@ -464,6 +472,7 @@ void MainWindow::createMenus()
     viewMenu->addAction(m_showGridAction);
     viewMenu->addAction(m_showQpHeatmapAction);
     viewMenu->addAction(m_showMotionVectorsAction);
+    viewMenu->addAction(m_showPlaybackInfoAction);
 
     QMenu *helpMenu = menuBar()->addMenu(tr("&Help"));
     helpMenu->addAction(m_checkForUpdatesAction);
@@ -494,6 +503,7 @@ void MainWindow::createToolBars()
     overlayToolBar->addAction(m_showGridAction);
     overlayToolBar->addAction(m_showQpHeatmapAction);
     overlayToolBar->addAction(m_showMotionVectorsAction);
+    overlayToolBar->addAction(m_showPlaybackInfoAction);
     overlayToolBar->addSeparator();
     overlayToolBar->addWidget(new QLabel(tr("Opacity"), overlayToolBar));
 
@@ -577,6 +587,7 @@ void MainWindow::openStreamFile(const QString &filePath)
         tr("%1\n\nDecoding video stream...")
             .arg(stream.fileName));
     m_videoCanvas->setAnalysisOverlay(FrameAnalysis {});
+    m_videoCanvas->clearPlaybackInfo();
     if (m_hexView != nullptr) {
         m_hexView->clearPacket(tr("Select an access unit to inspect packet bytes."));
     }
@@ -997,6 +1008,7 @@ bool MainWindow::showFrameFromCache(int frameIndex, bool selectInList, bool upda
     m_analysisStore.setCurrentFromCachedFrame(*cached);
     m_videoCanvas->setFrame(cached->frame);
     m_videoCanvas->setAnalysisOverlay(cached->analysis);
+    updatePlaybackInfo(*cached);
     if (m_hexView != nullptr) {
         m_hexView->showPacket(cached->analysis);
     }
@@ -1135,6 +1147,41 @@ void MainWindow::updateFrameIndexDisplay()
     m_frameIndexLabel->setText(tr("Frame %1 / %2")
                                    .arg(m_analysisStore.currentFrameIndex() + 1)
                                    .arg(m_analysisStore.latestFrameIndex() + 1));
+}
+
+void MainWindow::updatePlaybackInfo(const AnalysisStore::CachedFrame &cachedFrame)
+{
+    if (m_videoCanvas == nullptr) {
+        return;
+    }
+
+    const StreamInfo &streamInfo = m_document.streamInfo();
+    const PlaybackMetrics metrics = calculatePlaybackMetrics(streamInfo, cachedFrame.analysis);
+    QString timestamp = formatPlaybackTimestamp(metrics.timestampUs);
+    if (streamInfo.durationUs > 0) {
+        timestamp = tr("%1 / %2")
+                        .arg(timestamp, formatPlaybackTimestamp(streamInfo.durationUs));
+    }
+
+    const int width = cachedFrame.frame && cachedFrame.frame->width > 0
+        ? cachedFrame.frame->width
+        : streamInfo.width;
+    const int height = cachedFrame.frame && cachedFrame.frame->height > 0
+        ? cachedFrame.frame->height
+        : streamInfo.height;
+    const QString resolution = width > 0 && height > 0
+        ? tr("%1 x %2").arg(width).arg(height)
+        : QStringLiteral("-");
+    const QString codec = !cachedFrame.analysis.codecName.isEmpty()
+            && cachedFrame.analysis.codecName != QStringLiteral("Unknown")
+        ? cachedFrame.analysis.codecName
+        : (!streamInfo.codecName.isEmpty() ? streamInfo.codecName : codecKindName(streamInfo.codecKind));
+
+    m_videoCanvas->setPlaybackInfo(
+        timestamp,
+        formatPlaybackBitRate(metrics.bitRateBitsPerSecond, metrics.bitRateEstimated),
+        resolution,
+        codec);
 }
 
 void MainWindow::scheduleStatsDockUpdate()
@@ -1301,6 +1348,9 @@ void MainWindow::loadSettings()
     if (m_showMotionVectorsAction != nullptr) {
         m_showMotionVectorsAction->setChecked(settings.value(QStringLiteral("overlays/showMotionVectors"), m_showMotionVectorsAction->isChecked()).toBool());
     }
+    if (m_showPlaybackInfoAction != nullptr) {
+        m_showPlaybackInfoAction->setChecked(settings.value(QStringLiteral("overlays/showPlaybackInfo"), m_showPlaybackInfoAction->isChecked()).toBool());
+    }
     if (m_overlayOpacitySlider != nullptr) {
         m_overlayOpacitySlider->setValue(settings.value(QStringLiteral("overlays/opacity"), m_overlayOpacitySlider->value()).toInt());
     }
@@ -1321,6 +1371,9 @@ void MainWindow::saveSettings() const
     }
     if (m_showMotionVectorsAction != nullptr) {
         settings.setValue(QStringLiteral("overlays/showMotionVectors"), m_showMotionVectorsAction->isChecked());
+    }
+    if (m_showPlaybackInfoAction != nullptr) {
+        settings.setValue(QStringLiteral("overlays/showPlaybackInfo"), m_showPlaybackInfoAction->isChecked());
     }
     if (m_overlayOpacitySlider != nullptr) {
         settings.setValue(QStringLiteral("overlays/opacity"), m_overlayOpacitySlider->value());
