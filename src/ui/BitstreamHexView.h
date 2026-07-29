@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/analysis/BitstreamSearch.h"
 #include "core/model/FrameAnalysis.h"
 
 #include <QByteArray>
@@ -9,6 +10,7 @@
 #include <QWidget>
 
 class QLabel;
+class QLineEdit;
 class QPushButton;
 
 class BitstreamHexTextEdit : public QPlainTextEdit
@@ -42,9 +44,11 @@ public:
     void clearPacket(const QString &message);
     void highlightBitRange(qsizetype bitOffset, qsizetype bitLength);
     void highlightBitField(const AnalysisBitField &field);
+    void showSearchMatch(const QString &query, qsizetype byteOffset, qsizetype byteLength);
 
 signals:
     void bitFieldActivated(const AnalysisBitField &field);
+    void videoSearchRequested(const QString &query);
 
 private:
     void renderPage();
@@ -52,6 +56,9 @@ private:
     void updatePageControls();
     void handleByteActivated(qsizetype byteIndex, const QPoint &globalPosition);
     void activateBitField(const AnalysisBitField &field);
+    void refreshSearchMatches(bool selectFirstMatch);
+    void stepSearch(int direction);
+    void updateSearchControls();
     void updateBitPreview();
     QString highlightedRangeText() const;
     QVector<AnalysisBitField> fieldsForByte(qsizetype byteIndex) const;
@@ -62,6 +69,9 @@ private:
     QByteArray m_bytes;
     QVector<AnalysisBitField> m_bitFields;
     QVector<int> m_byteHexPositions;
+    QVector<int> m_byteAsciiPositions;
+    QVector<BitstreamSearchMatch> m_searchMatches;
+    int m_activeSearchMatch = -1;
     int m_pageIndex = 0;
     int m_pageCount = 0;
     qsizetype m_highlightBitOffset = -1;
@@ -71,6 +81,11 @@ private:
     QLabel *m_summaryLabel = nullptr;
     QLabel *m_rangeLabel = nullptr;
     QLabel *m_bitsLabel = nullptr;
+    QLabel *m_searchResultLabel = nullptr;
+    QLineEdit *m_searchEdit = nullptr;
+    QPushButton *m_previousMatchButton = nullptr;
+    QPushButton *m_nextMatchButton = nullptr;
+    QPushButton *m_videoSearchButton = nullptr;
     QPushButton *m_previousPageButton = nullptr;
     QPushButton *m_nextPageButton = nullptr;
     BitstreamHexTextEdit *m_textEdit = nullptr;

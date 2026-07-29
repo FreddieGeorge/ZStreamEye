@@ -3,9 +3,11 @@
 #include <QFontDatabase>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QLineEdit>
 #include <QMenu>
 #include <QMouseEvent>
 #include <QPushButton>
+#include <QSignalBlocker>
 #include <QStringList>
 #include <QTextCursor>
 #include <QVBoxLayout>
@@ -108,11 +110,26 @@ BitstreamHexView::BitstreamHexView(QWidget *parent)
     m_summaryLabel = new QLabel(this);
     m_rangeLabel = new QLabel(this);
     m_bitsLabel = new QLabel(this);
+    m_searchResultLabel = new QLabel(this);
+    m_searchEdit = new QLineEdit(this);
+    m_previousMatchButton = new QPushButton(tr("Previous Match"), this);
+    m_nextMatchButton = new QPushButton(tr("Next Match"), this);
+    m_videoSearchButton = new QPushButton(tr("Search Video"), this);
     m_previousPageButton = new QPushButton(tr("Previous"), this);
     m_nextPageButton = new QPushButton(tr("Next"), this);
     m_textEdit = new BitstreamHexTextEdit(this);
     m_bitsLabel->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
     m_bitsLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    m_searchEdit->setClearButtonEnabled(true);
+    m_searchEdit->setPlaceholderText(tr("Search Hex (00 00 01) or text"));
+
+    auto *searchLayout = new QHBoxLayout;
+    searchLayout->setContentsMargins(0, 0, 0, 0);
+    searchLayout->addWidget(m_searchEdit, 1);
+    searchLayout->addWidget(m_previousMatchButton);
+    searchLayout->addWidget(m_nextMatchButton);
+    searchLayout->addWidget(m_videoSearchButton);
+    searchLayout->addWidget(m_searchResultLabel);
 
     auto *topLayout = new QHBoxLayout;
     topLayout->setContentsMargins(0, 0, 0, 0);
@@ -123,6 +140,7 @@ BitstreamHexView::BitstreamHexView(QWidget *parent)
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(4, 4, 4, 4);
     layout->addLayout(topLayout);
+    layout->addLayout(searchLayout);
     layout->addWidget(m_rangeLabel);
     layout->addWidget(m_bitsLabel);
     layout->addWidget(m_textEdit, 1);
@@ -135,6 +153,24 @@ BitstreamHexView::BitstreamHexView(QWidget *parent)
     });
     connect(m_textEdit, &BitstreamHexTextEdit::byteActivated,
             this, &BitstreamHexView::handleByteActivated);
+    connect(m_searchEdit, &QLineEdit::textChanged, this, [this]() {
+        refreshSearchMatches(true);
+    });
+    connect(m_searchEdit, &QLineEdit::returnPressed, this, [this]() {
+        stepSearch(1);
+    });
+    connect(m_previousMatchButton, &QPushButton::clicked, this, [this]() {
+        stepSearch(-1);
+    });
+    connect(m_nextMatchButton, &QPushButton::clicked, this, [this]() {
+        stepSearch(1);
+    });
+    connect(m_videoSearchButton, &QPushButton::clicked, this, [this]() {
+        const QString query = m_searchEdit->text().trimmed();
+        if (!query.isEmpty()) {
+            emit videoSearchRequested(query);
+        }
+    });
 
     clearPacket(tr("Select an access unit to inspect packet bytes."));
 }
@@ -154,7 +190,7 @@ void BitstreamHexView::showPacket(const FrameAnalysis &analysis)
         return;
     }
 
-    renderPage();
+    refreshSearchMatches(true);
 }
 
 void BitstreamHexView::clearPacket(const QString &message)
@@ -162,6 +198,9 @@ void BitstreamHexView::clearPacket(const QString &message)
     m_bytes.clear();
     m_bitFields.clear();
     m_byteHexPositions.clear();
+    m_byteAsciiPositions.clear();
+    m_searchMatches.clear();
+    m_activeSearchMatch = -1;
     m_pageIndex = 0;
     m_pageCount = 0;
     m_highlightBitOffset = -1;
@@ -173,7 +212,36 @@ void BitstreamHexView::clearPacket(const QString &message)
     m_textEdit->setExtraSelections({});
     m_textEdit->setPlainText(message);
     m_textEdit->setBytePositions({}, 0);
+    updateSearchControls();
     updatePageControls();
+}
+
+void BitstreamHexView::showSearchMatch(const QString &query,
+                                       qsizetype byteOffset,
+                                       qsizetype byteLength)
+{
+    {
+        const QSignalBlocker blocker(m_searchEdit);
+        m_searchEdit->setText(query);
+    }
+    m_searchMatches = findBitstreamMatches(m_bytes, query);
+    m_activeSearchMatch = -1;
+    for (int i = 0; i < m_searchMatches.size(); ++i) {
+        const BitstreamSearchMatch &match = m_searchMatches.at(i);
+        if (match.byteOffset == byteOffset && match.byteLength == byteLength) {
+            m_activeSearchMatch = i;
+            break;
+        }
+    }
+    if (m_activeSearchMatch < 0 && !m_searchMatches.isEmpty()) {
+        m_activeSearchMatch = 0;
+    }
+    updateSearchControls();
+    if (m_activeSearchMatch >= 0) {
+        setPageIndex(static_cast<int>(m_searchMatches.at(m_activeSearchMatch).byteOffset / PageBytes));
+    } else {
+        renderPage();
+    }
 }
 
 void BitstreamHexView::highlightBitRange(qsizetype bitOffset, qsizetype bitLength)
@@ -226,6 +294,7 @@ void BitstreamHexView::highlightBitField(const AnalysisBitField &field)
 void BitstreamHexView::renderPage()
 {
     m_byteHexPositions.clear();
+    m_byteAsciiPositions.clear();
     m_textEdit->setExtraSelections({});
 
     if (m_bytes.isEmpty()) {
@@ -255,6 +324,7 @@ void BitstreamHexView::renderPage()
 
         text += QStringLiteral(" |");
         for (int column = 0; column < rowByteCount; ++column) {
+            m_byteAsciiPositions.append(text.size());
             const unsigned char byte = static_cast<unsigned char>(m_bytes.at(rowOffset + column));
             text += byte >= 0x20 && byte <= 0x7e ? QLatin1Char(byte) : QLatin1Char('.');
         }
@@ -275,6 +345,8 @@ void BitstreamHexView::renderPage()
     m_summaryLabel->setText(pageText);
     updatePageControls();
 
+    QList<QTextEdit::ExtraSelection> selections;
+
     if (m_highlightBitOffset >= 0 && m_highlightBitLength > 0) {
         const qsizetype firstByte = m_highlightBitOffset / 8;
         const qsizetype lastByte = (m_highlightBitOffset + m_highlightBitLength - 1) / 8;
@@ -283,7 +355,6 @@ void BitstreamHexView::renderPage()
         m_rangeLabel->setText(highlightedRangeText());
         updateBitPreview();
 
-        QList<QTextEdit::ExtraSelection> selections;
         const auto appendSelection = [this, pageStart, pageEnd, &selections](qsizetype rangeBitOffset, qsizetype rangeBitLength) {
             const qsizetype rangeFirstByte = rangeBitOffset / 8;
             const qsizetype rangeLastByte = (rangeBitOffset + rangeBitLength - 1) / 8;
@@ -311,8 +382,6 @@ void BitstreamHexView::renderPage()
                 appendSelection(range.bitOffset, range.bitLength);
             }
         }
-        m_textEdit->setExtraSelections(selections);
-
         if (firstByte >= pageStart && firstByte < pageEnd) {
             QTextCursor cursor(m_textEdit->document());
             cursor.setPosition(m_byteHexPositions.at(static_cast<int>(firstByte - pageStart)));
@@ -323,6 +392,54 @@ void BitstreamHexView::renderPage()
         m_rangeLabel->setText(tr("No bit field selected."));
         m_bitsLabel->setText(QString());
     }
+
+    const auto appendSearchSelection = [this, pageStart, pageEnd, &selections](
+                                           const BitstreamSearchMatch &match,
+                                           const QColor &color) {
+        const qsizetype firstVisibleByte = std::max<qsizetype>(match.byteOffset, pageStart);
+        const qsizetype lastVisibleByte = std::min<qsizetype>(
+            match.byteOffset + match.byteLength - 1,
+            pageEnd - 1);
+        for (qsizetype byteIndex = firstVisibleByte; byteIndex <= lastVisibleByte; ++byteIndex) {
+            const int localIndex = static_cast<int>(byteIndex - pageStart);
+            if (localIndex < 0
+                || localIndex >= m_byteHexPositions.size()
+                || localIndex >= m_byteAsciiPositions.size()) {
+                continue;
+            }
+            for (const auto positionAndLength : {
+                     std::pair<int, int>{m_byteHexPositions.at(localIndex), 2},
+                     std::pair<int, int>{m_byteAsciiPositions.at(localIndex), 1}}) {
+                QTextEdit::ExtraSelection selection;
+                selection.format.setBackground(color);
+                selection.format.setForeground(Qt::black);
+                QTextCursor cursor(m_textEdit->document());
+                cursor.setPosition(positionAndLength.first);
+                cursor.movePosition(QTextCursor::Right,
+                                    QTextCursor::KeepAnchor,
+                                    positionAndLength.second);
+                selection.cursor = cursor;
+                selections.append(selection);
+            }
+        }
+    };
+    for (int i = 0; i < m_searchMatches.size(); ++i) {
+        if (i == m_activeSearchMatch) {
+            continue;
+        }
+        appendSearchSelection(m_searchMatches.at(i), QColor(190, 229, 190));
+    }
+    if (m_activeSearchMatch >= 0 && m_activeSearchMatch < m_searchMatches.size()) {
+        const BitstreamSearchMatch &active = m_searchMatches.at(m_activeSearchMatch);
+        appendSearchSelection(active, QColor(255, 196, 96));
+        if (active.byteOffset >= pageStart && active.byteOffset < pageEnd) {
+            QTextCursor cursor(m_textEdit->document());
+            cursor.setPosition(m_byteHexPositions.at(static_cast<int>(active.byteOffset - pageStart)));
+            m_textEdit->setTextCursor(cursor);
+            m_textEdit->centerCursor();
+        }
+    }
+    m_textEdit->setExtraSelections(selections);
 }
 
 void BitstreamHexView::setPageIndex(int pageIndex)
@@ -394,6 +511,53 @@ void BitstreamHexView::activateBitField(const AnalysisBitField &field)
 {
     emit bitFieldActivated(field);
     highlightBitField(field);
+}
+
+void BitstreamHexView::refreshSearchMatches(bool selectFirstMatch)
+{
+    m_searchMatches = findBitstreamMatches(m_bytes, m_searchEdit->text());
+    if (m_searchMatches.isEmpty()) {
+        m_activeSearchMatch = -1;
+    } else if (selectFirstMatch || m_activeSearchMatch < 0
+               || m_activeSearchMatch >= m_searchMatches.size()) {
+        m_activeSearchMatch = 0;
+    }
+    updateSearchControls();
+    if (m_activeSearchMatch >= 0) {
+        setPageIndex(static_cast<int>(m_searchMatches.at(m_activeSearchMatch).byteOffset / PageBytes));
+    } else if (!m_bytes.isEmpty()) {
+        renderPage();
+    }
+}
+
+void BitstreamHexView::stepSearch(int direction)
+{
+    if (m_searchMatches.isEmpty()) {
+        refreshSearchMatches(true);
+        return;
+    }
+    const int count = m_searchMatches.size();
+    m_activeSearchMatch = (m_activeSearchMatch + direction + count) % count;
+    updateSearchControls();
+    setPageIndex(static_cast<int>(m_searchMatches.at(m_activeSearchMatch).byteOffset / PageBytes));
+}
+
+void BitstreamHexView::updateSearchControls()
+{
+    const bool hasQuery = !m_searchEdit->text().trimmed().isEmpty();
+    const bool hasMatches = !m_searchMatches.isEmpty();
+    m_previousMatchButton->setEnabled(hasMatches);
+    m_nextMatchButton->setEnabled(hasMatches);
+    m_videoSearchButton->setEnabled(hasQuery);
+    if (!hasQuery) {
+        m_searchResultLabel->setText(QString());
+    } else if (!hasMatches) {
+        m_searchResultLabel->setText(tr("No matches"));
+    } else {
+        m_searchResultLabel->setText(tr("%1/%2")
+                                         .arg(m_activeSearchMatch + 1)
+                                         .arg(m_searchMatches.size()));
+    }
 }
 
 void BitstreamHexView::updateBitPreview()

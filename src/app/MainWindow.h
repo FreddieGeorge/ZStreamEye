@@ -72,6 +72,7 @@ private:
     void handleSeekCheckpoint(const FrameSeekCheckpoint &checkpoint);
     void handleBufferingProgress(int startFrameIndex, int currentFrameIndex, int targetFrameIndex);
     void handleFrameListSelection(int frameIndex);
+    void searchVideoBitstream(const QString &query);
     bool showFrameFromCache(int frameIndex, bool selectInList = true, bool updatePropertyTree = true);
     void seekToFrame(int frameIndex);
     const AnalysisStore::CachedFrame *currentCachedFrame() const;

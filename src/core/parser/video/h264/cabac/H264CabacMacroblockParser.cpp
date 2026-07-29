@@ -274,12 +274,22 @@ H264CabacMacroblockSyntaxResult h264ReadCabacMacroblockSyntax(H264SliceDataConte
                         residual.coeffAbsLevelReadySuffixBins;
                     result.residualCoeffAbsLevelReadyRemainingInputBins =
                         residual.coeffAbsLevelReadyRemainingInputBins;
+                    result.residualCoeffAbsLevelReadyNeedsAdditionalPreUeg0ParsingFlags =
+                        residual.coeffAbsLevelReadyNeedsAdditionalPreUeg0ParsingFlags;
+                    result.residualCoeffAbsLevelReadyAdditionalPreUeg0ParsingTargetPrefixOneCounts =
+                        residual.coeffAbsLevelReadyAdditionalPreUeg0ParsingTargetPrefixOneCounts;
+                    result.residualCoeffAbsLevelReadyAdditionalPreUeg0ParsingRemainingPrefixBinCounts =
+                        residual.coeffAbsLevelReadyAdditionalPreUeg0ParsingRemainingPrefixBinCounts;
+                    result.residualCoeffAbsLevelReadyCanContinuePreUeg0PrefixParsingFlags =
+                        residual.coeffAbsLevelReadyCanContinuePreUeg0PrefixParsingFlags;
                     result.residualCoeffAbsLevelValueInputCompleteFlags =
                         residual.coeffAbsLevelValueInputCompleteFlags;
                     result.residualCoeffAbsLevelFixedInputRecognizedFlags =
                         residual.coeffAbsLevelFixedInputRecognizedFlags;
                     result.residualCoeffAbsLevelPreUeg0RemainingInputFlags =
                         residual.coeffAbsLevelPreUeg0RemainingInputFlags;
+                    result.residualCoeffAbsLevelNeedsAdditionalPreUeg0ParsingFlags =
+                        residual.coeffAbsLevelNeedsAdditionalPreUeg0ParsingFlags;
                     result.residualCoeffSignFlags = residual.coeffSignFlags;
                     result.residualIncompleteBlockIndex = residual.incompleteBlockIndex;
                     result.residualIncompleteScanIndex = residual.incompleteScanIndex;

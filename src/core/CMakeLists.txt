@@ -1,6 +1,8 @@
 set(ZSTREAMEYE_CORE_SOURCES
     analysis/AnalysisStats.h
     analysis/AnalysisStats.cpp
+    analysis/BitstreamSearch.h
+    analysis/BitstreamSearch.cpp
     analysis/AccessUnitAnalyzer.h
     analysis/AccessUnitAnalyzer.cpp
     buffering/RebufferState.h

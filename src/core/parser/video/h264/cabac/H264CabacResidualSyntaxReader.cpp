@@ -212,16 +212,38 @@ bool readLuma4x4CoeffAbsLevelMinus1RemainingSkeleton(BitReader &reader,
     result.coeffAbsLevelReadyPrefixOneCounts.append(prefixOneCount);
     result.coeffAbsLevelReadySuffixBins.append(suffixBinsForCoeff);
     result.coeffAbsLevelReadyRemainingInputBins.append(remainingInputBinsForCoeff);
-    result.coeffAbsLevelValueInputCompleteFlags.append(1);
     const bool fixedInputRecognized =
         isLuma4x4CoeffAbsLevelMinus1FixedReadyInput(prefixOneCount, suffixBinsForCoeff);
     const H264CabacCoeffAbsLevelRemainingInput remainingInput{
         prefixOneCount,
         remainingInputBinsForCoeff,
     };
+    const bool needsAdditionalPreUeg0Parsing =
+        h264CabacCoeffAbsLevelMinus1NeedsAdditionalPreUeg0Parsing(remainingInput);
+    const int additionalPreUeg0ParsingTargetPrefixOneCount =
+        h264CabacCoeffAbsLevelMinus1AdditionalPreUeg0ParsingTargetPrefixOneCount(remainingInput);
+    const int additionalPreUeg0ParsingRemainingPrefixBins =
+        h264CabacCoeffAbsLevelMinus1AdditionalPreUeg0ParsingRemainingPrefixBins(remainingInput);
+    const bool canContinuePreUeg0PrefixParsing =
+        h264CabacCoeffAbsLevelMinus1CanContinuePreUeg0PrefixParsing(remainingInput);
+    result.coeffAbsLevelReadyNeedsAdditionalPreUeg0ParsingFlags.append(
+        needsAdditionalPreUeg0Parsing ? 1 : 0);
+    if (additionalPreUeg0ParsingTargetPrefixOneCount >= 0) {
+        result.coeffAbsLevelReadyAdditionalPreUeg0ParsingTargetPrefixOneCounts.append(
+            additionalPreUeg0ParsingTargetPrefixOneCount);
+    }
+    if (additionalPreUeg0ParsingRemainingPrefixBins >= 0) {
+        result.coeffAbsLevelReadyAdditionalPreUeg0ParsingRemainingPrefixBinCounts.append(
+            additionalPreUeg0ParsingRemainingPrefixBins);
+    }
+    result.coeffAbsLevelReadyCanContinuePreUeg0PrefixParsingFlags.append(
+        canContinuePreUeg0PrefixParsing ? 1 : 0);
+    result.coeffAbsLevelValueInputCompleteFlags.append(1);
     result.coeffAbsLevelFixedInputRecognizedFlags.append(fixedInputRecognized ? 1 : 0);
     result.coeffAbsLevelPreUeg0RemainingInputFlags.append(
         fixedInputRecognized && h264CabacCoeffAbsLevelMinus1HasPreUeg0RemainingInput(remainingInput) ? 1 : 0);
+    result.coeffAbsLevelNeedsAdditionalPreUeg0ParsingFlags.append(
+        needsAdditionalPreUeg0Parsing ? 1 : 0);
     result.incompleteStage = QStringLiteral("coeff_abs_level_minus1");
     result.diagnosticMessage =
         QStringLiteral("CABAC luma4x4 coeff_abs_level_minus1[%1][%2] %3 suffix bypass bin was decoded after prefix one-count %4; computing coeff_abs_level_minus1 is not implemented.")
@@ -473,11 +495,35 @@ bool h264CabacCoeffAbsLevelMinus1NeedsAdditionalPreUeg0Parsing(
     return h264CabacCoeffAbsLevelMinus1HasPreUeg0RemainingInput(input);
 }
 
+int h264CabacCoeffAbsLevelMinus1AdditionalPreUeg0ParsingTargetPrefixOneCount(
+    const H264CabacCoeffAbsLevelRemainingInput &input)
+{
+    return h264CabacCoeffAbsLevelMinus1NeedsAdditionalPreUeg0Parsing(input)
+        ? CoeffAbsLevelMinus1Ueg0Cutoff
+        : -1;
+}
+
+int h264CabacCoeffAbsLevelMinus1AdditionalPreUeg0ParsingRemainingPrefixBins(
+    const H264CabacCoeffAbsLevelRemainingInput &input)
+{
+    const int targetPrefixOneCount =
+        h264CabacCoeffAbsLevelMinus1AdditionalPreUeg0ParsingTargetPrefixOneCount(input);
+    return targetPrefixOneCount >= 0 ? targetPrefixOneCount - input.prefixOneCount : -1;
+}
+
+bool h264CabacCoeffAbsLevelMinus1CanContinuePreUeg0PrefixParsing(
+    const H264CabacCoeffAbsLevelRemainingInput &input)
+{
+    return h264CabacCoeffAbsLevelMinus1NeedsAdditionalPreUeg0Parsing(input)
+        && h264CabacCoeffAbsLevelMinus1AdditionalPreUeg0ParsingTargetPrefixOneCount(input) >= 0
+        && h264CabacCoeffAbsLevelMinus1AdditionalPreUeg0ParsingRemainingPrefixBins(input) > 0;
+}
+
 bool h264CabacCoeffAbsLevelMinus1CanComputeFromUeg0Suffix(
     const H264CabacCoeffAbsLevelRemainingInput &input)
 {
     return h264CabacCoeffAbsLevelMinus1UsesUeg0Suffix(input.prefixOneCount)
-        && input.bins.size() == 4;
+        && (input.bins == QVector<int>{0} || input.bins.size() == 4);
 }
 
 bool h264CabacCoeffAbsLevelMinus1ReadUeg0SuffixValue(

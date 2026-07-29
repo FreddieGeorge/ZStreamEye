@@ -68,28 +68,66 @@ void testCoeffAbsLevelMinus1PreUeg0RemainingInputHelper()
             "CABAC coeff_abs_level_minus1 prefix before cutoff has pre-UEG0 remaining input");
     require(h264CabacCoeffAbsLevelMinus1NeedsAdditionalPreUeg0Parsing({4, {0, 0, 0, 0}}),
             "CABAC coeff_abs_level_minus1 current narrow input needs additional pre-UEG0 parsing");
+    require(h264CabacCoeffAbsLevelMinus1AdditionalPreUeg0ParsingTargetPrefixOneCount(
+                {4, {0, 0, 0, 0}}) == h264CabacCoeffAbsLevelMinus1Ueg0Cutoff(),
+            "CABAC coeff_abs_level_minus1 current narrow input targets UEG0 cutoff");
+    require(h264CabacCoeffAbsLevelMinus1AdditionalPreUeg0ParsingRemainingPrefixBins(
+                {4, {0, 0, 0, 0}}) == 10,
+            "CABAC coeff_abs_level_minus1 current narrow input remaining pre-UEG0 prefix bins");
+    require(h264CabacCoeffAbsLevelMinus1CanContinuePreUeg0PrefixParsing({4, {0, 0, 0, 0}}),
+            "CABAC coeff_abs_level_minus1 current narrow input can continue pre-UEG0 prefix parsing");
     require(h264CabacCoeffAbsLevelMinus1NeedsAdditionalPreUeg0Parsing({13, {0, 0, 0, 0}}),
             "CABAC coeff_abs_level_minus1 prefix before cutoff needs additional pre-UEG0 parsing");
+    require(h264CabacCoeffAbsLevelMinus1AdditionalPreUeg0ParsingTargetPrefixOneCount(
+                {13, {0, 0, 0, 0}}) == h264CabacCoeffAbsLevelMinus1Ueg0Cutoff(),
+            "CABAC coeff_abs_level_minus1 prefix before cutoff targets UEG0 cutoff");
+    require(h264CabacCoeffAbsLevelMinus1AdditionalPreUeg0ParsingRemainingPrefixBins(
+                {13, {0, 0, 0, 0}}) == 1,
+            "CABAC coeff_abs_level_minus1 prefix before cutoff remaining pre-UEG0 prefix bins");
+    require(h264CabacCoeffAbsLevelMinus1CanContinuePreUeg0PrefixParsing({13, {0, 0, 0, 0}}),
+            "CABAC coeff_abs_level_minus1 prefix before cutoff can continue pre-UEG0 prefix parsing");
     require(!h264CabacCoeffAbsLevelMinus1HasPreUeg0RemainingInput({14, {0, 0, 0, 0}}),
             "CABAC coeff_abs_level_minus1 cutoff does not have pre-UEG0 remaining input");
     require(!h264CabacCoeffAbsLevelMinus1NeedsAdditionalPreUeg0Parsing({14, {0, 0, 0, 0}}),
             "CABAC coeff_abs_level_minus1 cutoff does not need pre-UEG0 parsing");
+    require(h264CabacCoeffAbsLevelMinus1AdditionalPreUeg0ParsingTargetPrefixOneCount(
+                {14, {0, 0, 0, 0}}) == -1,
+            "CABAC coeff_abs_level_minus1 cutoff has no pre-UEG0 target");
+    require(h264CabacCoeffAbsLevelMinus1AdditionalPreUeg0ParsingRemainingPrefixBins(
+                {14, {0, 0, 0, 0}}) == -1,
+            "CABAC coeff_abs_level_minus1 cutoff has no remaining pre-UEG0 prefix bins");
+    require(!h264CabacCoeffAbsLevelMinus1CanContinuePreUeg0PrefixParsing({14, {0, 0, 0, 0}}),
+            "CABAC coeff_abs_level_minus1 cutoff cannot continue pre-UEG0 prefix parsing");
     require(!h264CabacCoeffAbsLevelMinus1CanComputeFromUeg0Suffix({4, {0, 0, 0, 0}}),
             "CABAC coeff_abs_level_minus1 current narrow input cannot compute from UEG0 suffix");
     require(!h264CabacCoeffAbsLevelMinus1CanComputeFromUeg0Suffix({13, {0, 0, 0, 0}}),
             "CABAC coeff_abs_level_minus1 pre-UEG0 input cannot compute from UEG0 suffix");
     require(h264CabacCoeffAbsLevelMinus1CanComputeFromUeg0Suffix({14, {0, 0, 0, 0}}),
             "CABAC coeff_abs_level_minus1 cutoff input can compute from UEG0 suffix shape");
+    require(h264CabacCoeffAbsLevelMinus1CanComputeFromUeg0Suffix({14, {0}}),
+            "CABAC coeff_abs_level_minus1 cutoff input accepts zero UEG0 suffix codeword");
     require(!h264CabacCoeffAbsLevelMinus1CanComputeFromUeg0Suffix({14, {0, 0, 0}}),
             "CABAC coeff_abs_level_minus1 cutoff short input cannot compute from UEG0 suffix");
     require(!h264CabacCoeffAbsLevelMinus1HasPreUeg0RemainingInput({4, {}}),
             "CABAC coeff_abs_level_minus1 empty bins are not complete pre-UEG0 remaining input");
     require(!h264CabacCoeffAbsLevelMinus1NeedsAdditionalPreUeg0Parsing({4, {}}),
             "CABAC coeff_abs_level_minus1 empty bins do not trigger additional pre-UEG0 parsing");
+    require(h264CabacCoeffAbsLevelMinus1AdditionalPreUeg0ParsingTargetPrefixOneCount({4, {}}) == -1,
+            "CABAC coeff_abs_level_minus1 empty bins have no pre-UEG0 target");
+    require(h264CabacCoeffAbsLevelMinus1AdditionalPreUeg0ParsingRemainingPrefixBins({4, {}}) == -1,
+            "CABAC coeff_abs_level_minus1 empty bins have no remaining pre-UEG0 prefix bins");
+    require(!h264CabacCoeffAbsLevelMinus1CanContinuePreUeg0PrefixParsing({4, {}}),
+            "CABAC coeff_abs_level_minus1 empty bins cannot continue pre-UEG0 prefix parsing");
     require(!h264CabacCoeffAbsLevelMinus1HasPreUeg0RemainingInput({4, {0, 0, 0}}),
             "CABAC coeff_abs_level_minus1 short bins are not complete pre-UEG0 remaining input");
     require(!h264CabacCoeffAbsLevelMinus1NeedsAdditionalPreUeg0Parsing({4, {0, 0, 0}}),
             "CABAC coeff_abs_level_minus1 short bins do not trigger additional pre-UEG0 parsing");
+    require(h264CabacCoeffAbsLevelMinus1AdditionalPreUeg0ParsingTargetPrefixOneCount({4, {0, 0, 0}}) == -1,
+            "CABAC coeff_abs_level_minus1 short bins have no pre-UEG0 target");
+    require(h264CabacCoeffAbsLevelMinus1AdditionalPreUeg0ParsingRemainingPrefixBins({4, {0, 0, 0}}) == -1,
+            "CABAC coeff_abs_level_minus1 short bins have no remaining pre-UEG0 prefix bins");
+    require(!h264CabacCoeffAbsLevelMinus1CanContinuePreUeg0PrefixParsing({4, {0, 0, 0}}),
+            "CABAC coeff_abs_level_minus1 short bins cannot continue pre-UEG0 prefix parsing");
 }
 
 void testCoeffAbsLevelMinus1Ueg0SuffixValueHelper()
@@ -104,6 +142,9 @@ void testCoeffAbsLevelMinus1Ueg0SuffixValueHelper()
     require(h264CabacCoeffAbsLevelMinus1ReadUeg0SuffixValue({14, {0, 0, 0, 0}}, &suffixValue),
             "CABAC coeff_abs_level_minus1 zero suffix value result");
     require(suffixValue == 0, "CABAC coeff_abs_level_minus1 zero suffix value");
+    require(h264CabacCoeffAbsLevelMinus1ReadUeg0SuffixValue({14, {0}}, &suffixValue),
+            "CABAC coeff_abs_level_minus1 zero UEG0 suffix codeword result");
+    require(suffixValue == 0, "CABAC coeff_abs_level_minus1 zero UEG0 suffix codeword value");
     require(h264CabacCoeffAbsLevelMinus1ReadUeg0SuffixValue({14, {1, 0, 1, 1}}, &suffixValue),
             "CABAC coeff_abs_level_minus1 mixed suffix value result");
     require(suffixValue == 11, "CABAC coeff_abs_level_minus1 mixed suffix value");
@@ -137,6 +178,11 @@ void testCoeffAbsLevelMinus1Ueg0SuffixComputeHelper()
                                                               &coeffAbsLevelMinus1Value),
             "CABAC coeff_abs_level_minus1 zero UEG0 input computes coeff_abs_level_minus1");
     require(coeffAbsLevelMinus1Value == 14, "CABAC coeff_abs_level_minus1 zero UEG0 value");
+    require(h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix({14, {0}},
+                                                              &coeffAbsLevelMinus1Value),
+            "CABAC coeff_abs_level_minus1 zero UEG0 suffix codeword computes value");
+    require(coeffAbsLevelMinus1Value == 14,
+            "CABAC coeff_abs_level_minus1 zero UEG0 suffix codeword value");
     require(h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix({14, {1, 0, 1, 1}},
                                                               &coeffAbsLevelMinus1Value),
             "CABAC coeff_abs_level_minus1 mixed UEG0 input computes coeff_abs_level_minus1");
@@ -1418,12 +1464,22 @@ void testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelThirdBinZeroPartial()
             "CABAC macroblock syntax P_8x8 coeff level third-bin zero no remaining input count");
     require(result.residualCoeffAbsLevelReadyRemainingInputBins.isEmpty(),
             "CABAC macroblock syntax P_8x8 coeff level third-bin zero no ready remaining input bins");
+    require(result.residualCoeffAbsLevelReadyNeedsAdditionalPreUeg0ParsingFlags.isEmpty(),
+            "CABAC macroblock syntax P_8x8 coeff level third-bin zero no ready additional pre-UEG0 parsing flag");
+    require(result.residualCoeffAbsLevelReadyAdditionalPreUeg0ParsingTargetPrefixOneCounts.isEmpty(),
+            "CABAC macroblock syntax P_8x8 coeff level third-bin zero no ready additional pre-UEG0 target");
+    require(result.residualCoeffAbsLevelReadyAdditionalPreUeg0ParsingRemainingPrefixBinCounts.isEmpty(),
+            "CABAC macroblock syntax P_8x8 coeff level third-bin zero no ready additional pre-UEG0 remaining prefix bins");
+    require(result.residualCoeffAbsLevelReadyCanContinuePreUeg0PrefixParsingFlags.isEmpty(),
+            "CABAC macroblock syntax P_8x8 coeff level third-bin zero no ready can-continue pre-UEG0 prefix parsing flag");
     require(result.residualCoeffAbsLevelValueInputCompleteFlags.isEmpty(),
             "CABAC macroblock syntax P_8x8 coeff level third-bin zero no value input complete flag");
     require(result.residualCoeffAbsLevelFixedInputRecognizedFlags.isEmpty(),
             "CABAC macroblock syntax P_8x8 coeff level third-bin zero no fixed input recognized flag");
     require(result.residualCoeffAbsLevelPreUeg0RemainingInputFlags.isEmpty(),
             "CABAC macroblock syntax P_8x8 coeff level third-bin zero no pre-UEG0 remaining input flag");
+    require(result.residualCoeffAbsLevelNeedsAdditionalPreUeg0ParsingFlags.isEmpty(),
+            "CABAC macroblock syntax P_8x8 coeff level third-bin zero no additional pre-UEG0 parsing flag");
     require(result.residualIncompleteBlockIndex == 12,
             "CABAC macroblock syntax P_8x8 coeff level third-bin zero incomplete block");
     require(result.residualIncompleteScanIndex == 0,
@@ -1488,12 +1544,22 @@ void testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelThirdBinOnePartial()
             "CABAC macroblock syntax P_8x8 coeff level third-bin one no remaining input count");
     require(result.residualCoeffAbsLevelReadyRemainingInputBins.isEmpty(),
             "CABAC macroblock syntax P_8x8 coeff level third-bin one no ready remaining input bins");
+    require(result.residualCoeffAbsLevelReadyNeedsAdditionalPreUeg0ParsingFlags.isEmpty(),
+            "CABAC macroblock syntax P_8x8 coeff level third-bin one no ready additional pre-UEG0 parsing flag");
+    require(result.residualCoeffAbsLevelReadyAdditionalPreUeg0ParsingTargetPrefixOneCounts.isEmpty(),
+            "CABAC macroblock syntax P_8x8 coeff level third-bin one no ready additional pre-UEG0 target");
+    require(result.residualCoeffAbsLevelReadyAdditionalPreUeg0ParsingRemainingPrefixBinCounts.isEmpty(),
+            "CABAC macroblock syntax P_8x8 coeff level third-bin one no ready additional pre-UEG0 remaining prefix bins");
+    require(result.residualCoeffAbsLevelReadyCanContinuePreUeg0PrefixParsingFlags.isEmpty(),
+            "CABAC macroblock syntax P_8x8 coeff level third-bin one no ready can-continue pre-UEG0 prefix parsing flag");
     require(result.residualCoeffAbsLevelValueInputCompleteFlags.isEmpty(),
             "CABAC macroblock syntax P_8x8 coeff level third-bin one no value input complete flag");
     require(result.residualCoeffAbsLevelFixedInputRecognizedFlags.isEmpty(),
             "CABAC macroblock syntax P_8x8 coeff level third-bin one no fixed input recognized flag");
     require(result.residualCoeffAbsLevelPreUeg0RemainingInputFlags.isEmpty(),
             "CABAC macroblock syntax P_8x8 coeff level third-bin one no pre-UEG0 remaining input flag");
+    require(result.residualCoeffAbsLevelNeedsAdditionalPreUeg0ParsingFlags.isEmpty(),
+            "CABAC macroblock syntax P_8x8 coeff level third-bin one no additional pre-UEG0 parsing flag");
     require(result.residualIncompleteBlockIndex == 12,
             "CABAC macroblock syntax P_8x8 coeff level third-bin one incomplete block");
     require(result.residualIncompleteScanIndex == 0,
@@ -1706,6 +1772,23 @@ void testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelFifthBinZeroPartial()
                 && result.residualCoeffAbsLevelReadyRemainingInputBins[0][2] == 0
                 && result.residualCoeffAbsLevelReadyRemainingInputBins[0][3] == 0,
             "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero ready remaining input values");
+    require(result.residualCoeffAbsLevelReadyNeedsAdditionalPreUeg0ParsingFlags.size() == 1,
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero ready additional pre-UEG0 parsing count");
+    require(result.residualCoeffAbsLevelReadyNeedsAdditionalPreUeg0ParsingFlags[0] == 1,
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero ready additional pre-UEG0 parsing value");
+    require(result.residualCoeffAbsLevelReadyAdditionalPreUeg0ParsingTargetPrefixOneCounts.size() == 1,
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero ready additional pre-UEG0 target count");
+    require(result.residualCoeffAbsLevelReadyAdditionalPreUeg0ParsingTargetPrefixOneCounts[0]
+                == h264CabacCoeffAbsLevelMinus1Ueg0Cutoff(),
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero ready additional pre-UEG0 target value");
+    require(result.residualCoeffAbsLevelReadyAdditionalPreUeg0ParsingRemainingPrefixBinCounts.size() == 1,
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero ready additional pre-UEG0 remaining prefix bin count");
+    require(result.residualCoeffAbsLevelReadyAdditionalPreUeg0ParsingRemainingPrefixBinCounts[0] == 10,
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero ready additional pre-UEG0 remaining prefix bins");
+    require(result.residualCoeffAbsLevelReadyCanContinuePreUeg0PrefixParsingFlags.size() == 1,
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero ready can-continue pre-UEG0 prefix parsing count");
+    require(result.residualCoeffAbsLevelReadyCanContinuePreUeg0PrefixParsingFlags[0] == 1,
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero ready can-continue pre-UEG0 prefix parsing value");
     require(result.residualCoeffAbsLevelValueInputCompleteFlags.size() == 1,
             "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero value input complete count");
     require(result.residualCoeffAbsLevelValueInputCompleteFlags[0] == 1,
@@ -1718,6 +1801,10 @@ void testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelFifthBinZeroPartial()
             "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero pre-UEG0 remaining input count");
     require(result.residualCoeffAbsLevelPreUeg0RemainingInputFlags[0] == 1,
             "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero pre-UEG0 remaining input value");
+    require(result.residualCoeffAbsLevelNeedsAdditionalPreUeg0ParsingFlags.size() == 1,
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero additional pre-UEG0 parsing count");
+    require(result.residualCoeffAbsLevelNeedsAdditionalPreUeg0ParsingFlags[0] == 1,
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero additional pre-UEG0 parsing value");
 }
 
 void testReadCabacMacroblockSyntaxP8x8ResidualLargeTerminatedPrefixStopsBeforeSign()
@@ -1977,6 +2064,23 @@ void testReadCabacMacroblockSyntaxP8x8ResidualFourthSuffixBypassBinPartial()
             "CABAC macroblock syntax P_8x8 fourth suffix bypass bin ready remaining input group count");
     require(result.residualCoeffAbsLevelReadyRemainingInputBins[0].size() == 4,
             "CABAC macroblock syntax P_8x8 fourth suffix bypass bin ready remaining input group size");
+    require(result.residualCoeffAbsLevelReadyNeedsAdditionalPreUeg0ParsingFlags.size() == 1,
+            "CABAC macroblock syntax P_8x8 fourth suffix bypass bin ready additional pre-UEG0 parsing count");
+    require(result.residualCoeffAbsLevelReadyNeedsAdditionalPreUeg0ParsingFlags[0] == 1,
+            "CABAC macroblock syntax P_8x8 fourth suffix bypass bin ready additional pre-UEG0 parsing value");
+    require(result.residualCoeffAbsLevelReadyAdditionalPreUeg0ParsingTargetPrefixOneCounts.size() == 1,
+            "CABAC macroblock syntax P_8x8 fourth suffix bypass bin ready additional pre-UEG0 target count");
+    require(result.residualCoeffAbsLevelReadyAdditionalPreUeg0ParsingTargetPrefixOneCounts[0]
+                == h264CabacCoeffAbsLevelMinus1Ueg0Cutoff(),
+            "CABAC macroblock syntax P_8x8 fourth suffix bypass bin ready additional pre-UEG0 target value");
+    require(result.residualCoeffAbsLevelReadyAdditionalPreUeg0ParsingRemainingPrefixBinCounts.size() == 1,
+            "CABAC macroblock syntax P_8x8 fourth suffix bypass bin ready additional pre-UEG0 remaining prefix bin count");
+    require(result.residualCoeffAbsLevelReadyAdditionalPreUeg0ParsingRemainingPrefixBinCounts[0] == 10,
+            "CABAC macroblock syntax P_8x8 fourth suffix bypass bin ready additional pre-UEG0 remaining prefix bins");
+    require(result.residualCoeffAbsLevelReadyCanContinuePreUeg0PrefixParsingFlags.size() == 1,
+            "CABAC macroblock syntax P_8x8 fourth suffix bypass bin ready can-continue pre-UEG0 prefix parsing count");
+    require(result.residualCoeffAbsLevelReadyCanContinuePreUeg0PrefixParsingFlags[0] == 1,
+            "CABAC macroblock syntax P_8x8 fourth suffix bypass bin ready can-continue pre-UEG0 prefix parsing value");
     require(result.residualCoeffAbsLevelValueInputCompleteFlags.size() == 1,
             "CABAC macroblock syntax P_8x8 fourth suffix bypass bin value input complete count");
     require(result.residualCoeffAbsLevelValueInputCompleteFlags[0] == 1,
@@ -1989,6 +2093,10 @@ void testReadCabacMacroblockSyntaxP8x8ResidualFourthSuffixBypassBinPartial()
             "CABAC macroblock syntax P_8x8 fourth suffix bypass bin pre-UEG0 remaining input count");
     require(result.residualCoeffAbsLevelPreUeg0RemainingInputFlags[0] == 1,
             "CABAC macroblock syntax P_8x8 fourth suffix bypass bin pre-UEG0 remaining input value");
+    require(result.residualCoeffAbsLevelNeedsAdditionalPreUeg0ParsingFlags.size() == 1,
+            "CABAC macroblock syntax P_8x8 fourth suffix bypass bin additional pre-UEG0 parsing count");
+    require(result.residualCoeffAbsLevelNeedsAdditionalPreUeg0ParsingFlags[0] == 1,
+            "CABAC macroblock syntax P_8x8 fourth suffix bypass bin additional pre-UEG0 parsing value");
     require(result.residualCoeffSignFlags.isEmpty(),
             "CABAC macroblock syntax P_8x8 fourth suffix bypass bin no sign flag");
     require(result.residualIncompleteStage == QStringLiteral("coeff_abs_level_minus1"),
@@ -2059,12 +2167,22 @@ void testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelFifthBinOnePartial()
             "CABAC macroblock syntax P_8x8 coeff level fifth-bin one no remaining input count");
     require(result.residualCoeffAbsLevelReadyRemainingInputBins.isEmpty(),
             "CABAC macroblock syntax P_8x8 coeff level fifth-bin one no ready remaining input bins");
+    require(result.residualCoeffAbsLevelReadyNeedsAdditionalPreUeg0ParsingFlags.isEmpty(),
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin one no ready additional pre-UEG0 parsing flag");
+    require(result.residualCoeffAbsLevelReadyAdditionalPreUeg0ParsingTargetPrefixOneCounts.isEmpty(),
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin one no ready additional pre-UEG0 target");
+    require(result.residualCoeffAbsLevelReadyAdditionalPreUeg0ParsingRemainingPrefixBinCounts.isEmpty(),
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin one no ready additional pre-UEG0 remaining prefix bins");
+    require(result.residualCoeffAbsLevelReadyCanContinuePreUeg0PrefixParsingFlags.isEmpty(),
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin one no ready can-continue pre-UEG0 prefix parsing flag");
     require(result.residualCoeffAbsLevelValueInputCompleteFlags.isEmpty(),
             "CABAC macroblock syntax P_8x8 coeff level fifth-bin one no value input complete flag");
     require(result.residualCoeffAbsLevelFixedInputRecognizedFlags.isEmpty(),
             "CABAC macroblock syntax P_8x8 coeff level fifth-bin one no fixed input recognized flag");
     require(result.residualCoeffAbsLevelPreUeg0RemainingInputFlags.isEmpty(),
             "CABAC macroblock syntax P_8x8 coeff level fifth-bin one no pre-UEG0 remaining input flag");
+    require(result.residualCoeffAbsLevelNeedsAdditionalPreUeg0ParsingFlags.isEmpty(),
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin one no additional pre-UEG0 parsing flag");
     require(result.residualIncompleteBlockIndex == 12,
             "CABAC macroblock syntax P_8x8 coeff level fifth-bin one incomplete block");
     require(result.residualIncompleteScanIndex == 0,
@@ -2753,12 +2871,22 @@ void testReadResidualLuma4x4CoeffAbsLevelThirdBinZeroIncomplete()
             "CABAC residual luma4x4 coeff level third-bin zero no remaining input count");
     require(result.coeffAbsLevelReadyRemainingInputBins.isEmpty(),
             "CABAC residual luma4x4 coeff level third-bin zero no ready remaining input bins");
+    require(result.coeffAbsLevelReadyNeedsAdditionalPreUeg0ParsingFlags.isEmpty(),
+            "CABAC residual luma4x4 coeff level third-bin zero no ready additional pre-UEG0 parsing flag");
+    require(result.coeffAbsLevelReadyAdditionalPreUeg0ParsingTargetPrefixOneCounts.isEmpty(),
+            "CABAC residual luma4x4 coeff level third-bin zero no ready additional pre-UEG0 target");
+    require(result.coeffAbsLevelReadyAdditionalPreUeg0ParsingRemainingPrefixBinCounts.isEmpty(),
+            "CABAC residual luma4x4 coeff level third-bin zero no ready additional pre-UEG0 remaining prefix bins");
+    require(result.coeffAbsLevelReadyCanContinuePreUeg0PrefixParsingFlags.isEmpty(),
+            "CABAC residual luma4x4 coeff level third-bin zero no ready can-continue pre-UEG0 prefix parsing flag");
     require(result.coeffAbsLevelValueInputCompleteFlags.isEmpty(),
             "CABAC residual luma4x4 coeff level third-bin zero no value input complete flag");
     require(result.coeffAbsLevelFixedInputRecognizedFlags.isEmpty(),
             "CABAC residual luma4x4 coeff level third-bin zero no fixed input recognized flag");
     require(result.coeffAbsLevelPreUeg0RemainingInputFlags.isEmpty(),
             "CABAC residual luma4x4 coeff level third-bin zero no pre-UEG0 remaining input flag");
+    require(result.coeffAbsLevelNeedsAdditionalPreUeg0ParsingFlags.isEmpty(),
+            "CABAC residual luma4x4 coeff level third-bin zero no additional pre-UEG0 parsing flag");
     require(result.incompleteBlockIndex == 12,
             "CABAC residual luma4x4 coeff level third-bin zero incomplete block");
     require(result.incompleteScanIndex == 0,
@@ -2811,12 +2939,22 @@ void testReadResidualLuma4x4CoeffAbsLevelThirdBinOneIncomplete()
             "CABAC residual luma4x4 coeff level third-bin one no remaining input count");
     require(result.coeffAbsLevelReadyRemainingInputBins.isEmpty(),
             "CABAC residual luma4x4 coeff level third-bin one no ready remaining input bins");
+    require(result.coeffAbsLevelReadyNeedsAdditionalPreUeg0ParsingFlags.isEmpty(),
+            "CABAC residual luma4x4 coeff level third-bin one no ready additional pre-UEG0 parsing flag");
+    require(result.coeffAbsLevelReadyAdditionalPreUeg0ParsingTargetPrefixOneCounts.isEmpty(),
+            "CABAC residual luma4x4 coeff level third-bin one no ready additional pre-UEG0 target");
+    require(result.coeffAbsLevelReadyAdditionalPreUeg0ParsingRemainingPrefixBinCounts.isEmpty(),
+            "CABAC residual luma4x4 coeff level third-bin one no ready additional pre-UEG0 remaining prefix bins");
+    require(result.coeffAbsLevelReadyCanContinuePreUeg0PrefixParsingFlags.isEmpty(),
+            "CABAC residual luma4x4 coeff level third-bin one no ready can-continue pre-UEG0 prefix parsing flag");
     require(result.coeffAbsLevelValueInputCompleteFlags.isEmpty(),
             "CABAC residual luma4x4 coeff level third-bin one no value input complete flag");
     require(result.coeffAbsLevelFixedInputRecognizedFlags.isEmpty(),
             "CABAC residual luma4x4 coeff level third-bin one no fixed input recognized flag");
     require(result.coeffAbsLevelPreUeg0RemainingInputFlags.isEmpty(),
             "CABAC residual luma4x4 coeff level third-bin one no pre-UEG0 remaining input flag");
+    require(result.coeffAbsLevelNeedsAdditionalPreUeg0ParsingFlags.isEmpty(),
+            "CABAC residual luma4x4 coeff level third-bin one no additional pre-UEG0 parsing flag");
     require(result.incompleteBlockIndex == 12,
             "CABAC residual luma4x4 coeff level third-bin one incomplete block");
     require(result.incompleteScanIndex == 0,
@@ -3037,6 +3175,23 @@ void testReadResidualLuma4x4CoeffAbsLevelFifthBinZeroIncomplete()
                 && result.coeffAbsLevelReadyRemainingInputBins[0][2] == 0
                 && result.coeffAbsLevelReadyRemainingInputBins[0][3] == 0,
             "CABAC residual luma4x4 coeff level fifth-bin zero ready remaining input values");
+    require(result.coeffAbsLevelReadyNeedsAdditionalPreUeg0ParsingFlags.size() == 1,
+            "CABAC residual luma4x4 coeff level fifth-bin zero ready additional pre-UEG0 parsing count");
+    require(result.coeffAbsLevelReadyNeedsAdditionalPreUeg0ParsingFlags[0] == 1,
+            "CABAC residual luma4x4 coeff level fifth-bin zero ready additional pre-UEG0 parsing value");
+    require(result.coeffAbsLevelReadyAdditionalPreUeg0ParsingTargetPrefixOneCounts.size() == 1,
+            "CABAC residual luma4x4 coeff level fifth-bin zero ready additional pre-UEG0 target count");
+    require(result.coeffAbsLevelReadyAdditionalPreUeg0ParsingTargetPrefixOneCounts[0]
+                == h264CabacCoeffAbsLevelMinus1Ueg0Cutoff(),
+            "CABAC residual luma4x4 coeff level fifth-bin zero ready additional pre-UEG0 target value");
+    require(result.coeffAbsLevelReadyAdditionalPreUeg0ParsingRemainingPrefixBinCounts.size() == 1,
+            "CABAC residual luma4x4 coeff level fifth-bin zero ready additional pre-UEG0 remaining prefix bin count");
+    require(result.coeffAbsLevelReadyAdditionalPreUeg0ParsingRemainingPrefixBinCounts[0] == 10,
+            "CABAC residual luma4x4 coeff level fifth-bin zero ready additional pre-UEG0 remaining prefix bins");
+    require(result.coeffAbsLevelReadyCanContinuePreUeg0PrefixParsingFlags.size() == 1,
+            "CABAC residual luma4x4 coeff level fifth-bin zero ready can-continue pre-UEG0 prefix parsing count");
+    require(result.coeffAbsLevelReadyCanContinuePreUeg0PrefixParsingFlags[0] == 1,
+            "CABAC residual luma4x4 coeff level fifth-bin zero ready can-continue pre-UEG0 prefix parsing value");
     require(result.coeffAbsLevelValueInputCompleteFlags.size() == 1,
             "CABAC residual luma4x4 coeff level fifth-bin zero value input complete count");
     require(result.coeffAbsLevelValueInputCompleteFlags[0] == 1,
@@ -3049,6 +3204,10 @@ void testReadResidualLuma4x4CoeffAbsLevelFifthBinZeroIncomplete()
             "CABAC residual luma4x4 coeff level fifth-bin zero pre-UEG0 remaining input count");
     require(result.coeffAbsLevelPreUeg0RemainingInputFlags[0] == 1,
             "CABAC residual luma4x4 coeff level fifth-bin zero pre-UEG0 remaining input value");
+    require(result.coeffAbsLevelNeedsAdditionalPreUeg0ParsingFlags.size() == 1,
+            "CABAC residual luma4x4 coeff level fifth-bin zero additional pre-UEG0 parsing count");
+    require(result.coeffAbsLevelNeedsAdditionalPreUeg0ParsingFlags[0] == 1,
+            "CABAC residual luma4x4 coeff level fifth-bin zero additional pre-UEG0 parsing value");
     require(!h264CabacCoeffAbsLevelMinus1CanComputeFromUeg0Suffix(
                 {result.coeffAbsLevelReadyPrefixOneCounts[0],
                  result.coeffAbsLevelReadyRemainingInputBins[0]}),
@@ -3106,12 +3265,22 @@ void testReadResidualLuma4x4CoeffAbsLevelFifthBinOneIncomplete()
             "CABAC residual luma4x4 coeff level fifth-bin one no remaining input count");
     require(result.coeffAbsLevelReadyRemainingInputBins.isEmpty(),
             "CABAC residual luma4x4 coeff level fifth-bin one no ready remaining input bins");
+    require(result.coeffAbsLevelReadyNeedsAdditionalPreUeg0ParsingFlags.isEmpty(),
+            "CABAC residual luma4x4 coeff level fifth-bin one no ready additional pre-UEG0 parsing flag");
+    require(result.coeffAbsLevelReadyAdditionalPreUeg0ParsingTargetPrefixOneCounts.isEmpty(),
+            "CABAC residual luma4x4 coeff level fifth-bin one no ready additional pre-UEG0 target");
+    require(result.coeffAbsLevelReadyAdditionalPreUeg0ParsingRemainingPrefixBinCounts.isEmpty(),
+            "CABAC residual luma4x4 coeff level fifth-bin one no ready additional pre-UEG0 remaining prefix bins");
+    require(result.coeffAbsLevelReadyCanContinuePreUeg0PrefixParsingFlags.isEmpty(),
+            "CABAC residual luma4x4 coeff level fifth-bin one no ready can-continue pre-UEG0 prefix parsing flag");
     require(result.coeffAbsLevelValueInputCompleteFlags.isEmpty(),
             "CABAC residual luma4x4 coeff level fifth-bin one no value input complete flag");
     require(result.coeffAbsLevelFixedInputRecognizedFlags.isEmpty(),
             "CABAC residual luma4x4 coeff level fifth-bin one no fixed input recognized flag");
     require(result.coeffAbsLevelPreUeg0RemainingInputFlags.isEmpty(),
             "CABAC residual luma4x4 coeff level fifth-bin one no pre-UEG0 remaining input flag");
+    require(result.coeffAbsLevelNeedsAdditionalPreUeg0ParsingFlags.isEmpty(),
+            "CABAC residual luma4x4 coeff level fifth-bin one no additional pre-UEG0 parsing flag");
     require(result.incompleteBlockIndex == 12,
             "CABAC residual luma4x4 coeff level fifth-bin one incomplete block");
     require(result.incompleteScanIndex == 0,
@@ -3353,6 +3522,23 @@ void testReadResidualLuma4x4CoeffAbsLevelFourthSuffixBypassBinIncomplete()
             "CABAC residual luma4x4 fourth suffix bypass bin ready remaining input group count");
     require(result.coeffAbsLevelReadyRemainingInputBins[0].size() == 4,
             "CABAC residual luma4x4 fourth suffix bypass bin ready remaining input group size");
+    require(result.coeffAbsLevelReadyNeedsAdditionalPreUeg0ParsingFlags.size() == 1,
+            "CABAC residual luma4x4 fourth suffix bypass bin ready additional pre-UEG0 parsing count");
+    require(result.coeffAbsLevelReadyNeedsAdditionalPreUeg0ParsingFlags[0] == 1,
+            "CABAC residual luma4x4 fourth suffix bypass bin ready additional pre-UEG0 parsing value");
+    require(result.coeffAbsLevelReadyAdditionalPreUeg0ParsingTargetPrefixOneCounts.size() == 1,
+            "CABAC residual luma4x4 fourth suffix bypass bin ready additional pre-UEG0 target count");
+    require(result.coeffAbsLevelReadyAdditionalPreUeg0ParsingTargetPrefixOneCounts[0]
+                == h264CabacCoeffAbsLevelMinus1Ueg0Cutoff(),
+            "CABAC residual luma4x4 fourth suffix bypass bin ready additional pre-UEG0 target value");
+    require(result.coeffAbsLevelReadyAdditionalPreUeg0ParsingRemainingPrefixBinCounts.size() == 1,
+            "CABAC residual luma4x4 fourth suffix bypass bin ready additional pre-UEG0 remaining prefix bin count");
+    require(result.coeffAbsLevelReadyAdditionalPreUeg0ParsingRemainingPrefixBinCounts[0] == 10,
+            "CABAC residual luma4x4 fourth suffix bypass bin ready additional pre-UEG0 remaining prefix bins");
+    require(result.coeffAbsLevelReadyCanContinuePreUeg0PrefixParsingFlags.size() == 1,
+            "CABAC residual luma4x4 fourth suffix bypass bin ready can-continue pre-UEG0 prefix parsing count");
+    require(result.coeffAbsLevelReadyCanContinuePreUeg0PrefixParsingFlags[0] == 1,
+            "CABAC residual luma4x4 fourth suffix bypass bin ready can-continue pre-UEG0 prefix parsing value");
     require(result.coeffAbsLevelValueInputCompleteFlags.size() == 1,
             "CABAC residual luma4x4 fourth suffix bypass bin value input complete count");
     require(result.coeffAbsLevelValueInputCompleteFlags[0] == 1,
@@ -3365,6 +3551,10 @@ void testReadResidualLuma4x4CoeffAbsLevelFourthSuffixBypassBinIncomplete()
             "CABAC residual luma4x4 fourth suffix bypass bin pre-UEG0 remaining input count");
     require(result.coeffAbsLevelPreUeg0RemainingInputFlags[0] == 1,
             "CABAC residual luma4x4 fourth suffix bypass bin pre-UEG0 remaining input value");
+    require(result.coeffAbsLevelNeedsAdditionalPreUeg0ParsingFlags.size() == 1,
+            "CABAC residual luma4x4 fourth suffix bypass bin additional pre-UEG0 parsing count");
+    require(result.coeffAbsLevelNeedsAdditionalPreUeg0ParsingFlags[0] == 1,
+            "CABAC residual luma4x4 fourth suffix bypass bin additional pre-UEG0 parsing value");
     require(result.incompleteStage == QStringLiteral("coeff_abs_level_minus1"),
             "CABAC residual luma4x4 fourth suffix bypass bin stage");
     require(result.diagnosticMessage.contains(QStringLiteral("fourth suffix bypass bin")),

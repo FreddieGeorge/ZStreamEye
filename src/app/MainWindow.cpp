@@ -11,17 +11,21 @@
 #include "ui/VideoCanvas.h"
 
 #include "core/analysis/AnalysisStats.h"
+#include "core/analysis/BitstreamSearch.h"
 
 #include <QAction>
 #include <QCloseEvent>
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QDesktopServices>
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QDir>
 #include <QDockWidget>
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QFileDialog>
+#include <QHeaderView>
 #include <QKeySequence>
 #include <QLabel>
 #include <QList>
@@ -43,6 +47,7 @@
 #include <QSlider>
 #include <QTreeWidgetItem>
 #include <QUrl>
+#include <QVBoxLayout>
 #include <QWidget>
 
 #include <algorithm>
@@ -142,6 +147,14 @@ QString motionVectorStatusText(const FrameAnalysis &analysis)
     }
 
     return QObject::tr("MV: no supported vectors parsed for this frame.");
+}
+
+QString searchAccessUnitTypeText(const FrameAnalysis &analysis)
+{
+    if (analysis.accessUnitKind == AccessUnitKind::VideoFrame && !analysis.frameType.isEmpty()) {
+        return analysis.frameType;
+    }
+    return accessUnitKindName(analysis.accessUnitKind);
 }
 
 QString streamSelectorText(const MediaStreamInfo &stream)
@@ -416,6 +429,8 @@ void MainWindow::createDocks()
             });
     connect(m_hexView, &BitstreamHexView::bitFieldActivated,
             m_propertyTreeView, &PropertyTreeView::selectBitField);
+    connect(m_hexView, &BitstreamHexView::videoSearchRequested,
+            this, &MainWindow::searchVideoBitstream);
 
     m_logDock = new LogDock;
     m_logDockWidget = new QDockWidget(tr("LogDock"), this);
@@ -835,6 +850,137 @@ void MainWindow::handleFrameListSelection(int frameIndex)
     if (!showFrameFromCache(frameIndex, false, true)) {
         seekToFrame(frameIndex);
     }
+}
+
+void MainWindow::searchVideoBitstream(const QString &query)
+{
+    struct SearchResult
+    {
+        int analysisIndex = -1;
+        BitstreamSearchMatch match;
+    };
+
+    constexpr qsizetype MaxVideoSearchResults = 5000;
+    constexpr int SearchResultRole = Qt::UserRole + 1;
+    const QVector<FrameAnalysis> &analyses = m_analysisStore.accessUnitAnalyses();
+    if (analyses.isEmpty()) {
+        QMessageBox::information(this,
+                                 tr("Search Video Bitstream"),
+                                 tr("No decoded access-unit bytes are available yet."));
+        return;
+    }
+
+    QVector<SearchResult> results;
+    bool truncated = false;
+    for (int analysisIndex = 0; analysisIndex < analyses.size(); ++analysisIndex) {
+        const qsizetype remaining = MaxVideoSearchResults - results.size();
+        if (remaining <= 0) {
+            truncated = true;
+            break;
+        }
+        const QVector<BitstreamSearchMatch> matches =
+            findBitstreamMatches(analyses.at(analysisIndex).packet.bytes, query, remaining);
+        for (const BitstreamSearchMatch &match : matches) {
+            results.append({analysisIndex, match});
+        }
+    }
+
+    if (results.isEmpty()) {
+        QMessageBox::information(
+            this,
+            tr("Search Video Bitstream"),
+            tr("No Hex or text matches were found in %1 decoded access units.").arg(analyses.size()));
+        return;
+    }
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("Video Bitstream Search"));
+    dialog.resize(760, 480);
+
+    auto *summary = new QLabel(
+        truncated
+            ? tr("Showing the first %1 matches from %2 decoded access units.")
+                  .arg(results.size())
+                  .arg(analyses.size())
+            : tr("Found %1 matches in %2 decoded access units.")
+                  .arg(results.size())
+                  .arg(analyses.size()),
+        &dialog);
+    auto *resultTree = new QTreeWidget(&dialog);
+    resultTree->setColumnCount(6);
+    resultTree->setHeaderLabels({tr("AU Index"),
+                                 tr("Stream"),
+                                 tr("Media"),
+                                 tr("Type"),
+                                 tr("Byte Offset"),
+                                 tr("Length")});
+    resultTree->setRootIsDecorated(false);
+    resultTree->setAlternatingRowColors(true);
+    resultTree->setSelectionMode(QAbstractItemView::SingleSelection);
+    resultTree->setUniformRowHeights(true);
+
+    for (int resultIndex = 0; resultIndex < results.size(); ++resultIndex) {
+        const SearchResult &result = results.at(resultIndex);
+        const FrameAnalysis &analysis = analyses.at(result.analysisIndex);
+        auto *item = new QTreeWidgetItem({QString::number(analysis.frameIndex),
+                                          QString::number(analysis.streamIndex),
+                                          mediaKindName(analysis.mediaKind),
+                                          searchAccessUnitTypeText(analysis),
+                                          QString::number(result.match.byteOffset),
+                                          QString::number(result.match.byteLength)});
+        item->setData(0, SearchResultRole, resultIndex);
+        resultTree->addTopLevelItem(item);
+    }
+    resultTree->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    resultTree->header()->setStretchLastSection(true);
+    resultTree->setCurrentItem(resultTree->topLevelItem(0));
+
+    auto *buttons = new QDialogButtonBox(&dialog);
+    QPushButton *openButton = buttons->addButton(tr("Open Match"), QDialogButtonBox::AcceptRole);
+    buttons->addButton(QDialogButtonBox::Close);
+    connect(openButton, &QPushButton::clicked, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    connect(resultTree, &QTreeWidget::itemDoubleClicked, &dialog, [&dialog](QTreeWidgetItem *, int) {
+        dialog.accept();
+    });
+
+    auto *layout = new QVBoxLayout(&dialog);
+    layout->addWidget(summary);
+    layout->addWidget(resultTree, 1);
+    layout->addWidget(buttons);
+
+    if (dialog.exec() != QDialog::Accepted || resultTree->currentItem() == nullptr) {
+        return;
+    }
+    const int resultIndex = resultTree->currentItem()->data(0, SearchResultRole).toInt();
+    if (resultIndex < 0 || resultIndex >= results.size()) {
+        return;
+    }
+
+    const SearchResult result = results.at(resultIndex);
+    const FrameAnalysis analysis = analyses.at(result.analysisIndex);
+    const AnalysisStore::CachedFrame *cached = analysis.accessUnitKind == AccessUnitKind::VideoFrame
+        ? m_analysisStore.cachedFrame(analysis.frameIndex)
+        : nullptr;
+    if (cached != nullptr) {
+        showFrameFromCache(analysis.frameIndex, true, true);
+    } else {
+        m_analysisStore.setCurrentAnalysis(analysis);
+        m_propertyTreeView->showFrameAnalysis(analysis);
+        if (analysis.accessUnitKind == AccessUnitKind::VideoFrame) {
+            m_frameListView->selectFrameIndex(analysis.frameIndex);
+        }
+    }
+    m_hexView->showPacket(analysis);
+    m_hexView->showSearchMatch(query, result.match.byteOffset, result.match.byteLength);
+    m_hexDock->show();
+    m_hexDock->raise();
+    updateExportActionState();
+    statusBar()->showMessage(
+        tr("Opened bitstream match at access unit %1, byte %2.")
+            .arg(analysis.frameIndex)
+            .arg(result.match.byteOffset),
+        3000);
 }
 
 bool MainWindow::showFrameFromCache(int frameIndex, bool selectInList, bool updatePropertyTree)

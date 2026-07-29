@@ -19,6 +19,12 @@ bool h264CabacCoeffAbsLevelMinus1HasPreUeg0RemainingInput(
     const H264CabacCoeffAbsLevelRemainingInput &input);
 bool h264CabacCoeffAbsLevelMinus1NeedsAdditionalPreUeg0Parsing(
     const H264CabacCoeffAbsLevelRemainingInput &input);
+int h264CabacCoeffAbsLevelMinus1AdditionalPreUeg0ParsingTargetPrefixOneCount(
+    const H264CabacCoeffAbsLevelRemainingInput &input);
+int h264CabacCoeffAbsLevelMinus1AdditionalPreUeg0ParsingRemainingPrefixBins(
+    const H264CabacCoeffAbsLevelRemainingInput &input);
+bool h264CabacCoeffAbsLevelMinus1CanContinuePreUeg0PrefixParsing(
+    const H264CabacCoeffAbsLevelRemainingInput &input);
 bool h264CabacCoeffAbsLevelMinus1CanComputeFromUeg0Suffix(
     const H264CabacCoeffAbsLevelRemainingInput &input);
 bool h264CabacCoeffAbsLevelMinus1ReadUeg0SuffixValue(

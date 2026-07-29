@@ -190,7 +190,41 @@ Important H.264 files:
   reader result field carries a computed coefficient level yet. A pure
   `h264CabacCoeffAbsLevelMinus1NeedsAdditionalPreUeg0Parsing()` helper marks
   current pre-UEG0 remaining inputs such as `prefixOneCount == 4` plus four bins
-  as needing more pre-UEG0 parsing rather than value computation.
+  as needing more pre-UEG0 parsing rather than value computation. The residual
+  reader now records that helper result in
+  `coeffAbsLevelNeedsAdditionalPreUeg0ParsingFlags`, and the macroblock layer
+  propagates it as
+  `residualCoeffAbsLevelNeedsAdditionalPreUeg0ParsingFlags`; the current ready
+  path records `[1]`, while direct-sign and covered-prefix-not-terminated paths
+  leave the flag list empty. A parallel ready-group field,
+  `coeffAbsLevelReadyNeedsAdditionalPreUeg0ParsingFlags`, records the same
+  helper result alongside the ready prefix one-count and ready remaining-input
+  bins; macroblock syntax exposes it as
+  `residualCoeffAbsLevelReadyNeedsAdditionalPreUeg0ParsingFlags`. A pure
+  `h264CabacCoeffAbsLevelMinus1AdditionalPreUeg0ParsingTargetPrefixOneCount()`
+  helper returns the UEG0 cutoff (`14`) for those pre-UEG0 ready inputs and
+  `-1` otherwise; the reader records that target in
+  `coeffAbsLevelReadyAdditionalPreUeg0ParsingTargetPrefixOneCounts`, with
+  macroblock propagation through
+  `residualCoeffAbsLevelReadyAdditionalPreUeg0ParsingTargetPrefixOneCounts`.
+  This target is only a parsing boundary marker, not a computed coefficient
+  value. A paired pure
+  `h264CabacCoeffAbsLevelMinus1AdditionalPreUeg0ParsingRemainingPrefixBins()`
+  helper reports how many pre-UEG0 prefix bins are still needed to reach that
+  target (`10` for the current `prefixOneCount == 4` input, `1` for
+  `prefixOneCount == 13`, and `-1` when the target does not apply). The reader
+  now records the applicable ready-input count in
+  `coeffAbsLevelReadyAdditionalPreUeg0ParsingRemainingPrefixBinCounts`, with
+  macroblock propagation through
+  `residualCoeffAbsLevelReadyAdditionalPreUeg0ParsingRemainingPrefixBinCounts`;
+  this still does not read those additional prefix bins. A pure
+  `h264CabacCoeffAbsLevelMinus1CanContinuePreUeg0PrefixParsing()` helper now
+  combines the existing needs-additional, target, and remaining-prefix-bin
+  checks into one guard. The reader records it in
+  `coeffAbsLevelReadyCanContinuePreUeg0PrefixParsingFlags`, with macroblock
+  propagation through
+  `residualCoeffAbsLevelReadyCanContinuePreUeg0PrefixParsingFlags`; the current
+  ready path records `[1]`, while non-ready paths remain empty.
   Direct-sign paths and covered-prefix-not-terminated paths keep the aligned
   ready flag at zero and do not create suffix bins, ready prefix one-counts, or
   ready suffix-bin groups, and they do not set value-input-complete or
