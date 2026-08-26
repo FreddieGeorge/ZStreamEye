@@ -13,7 +13,7 @@ struct InitValue
 };
 
 constexpr int CabacInitTableCount = 4;
-constexpr int CabacCoveredContextCount = 256;
+constexpr int CabacCoveredContextCount = 267;
 constexpr int IntraInitTableIndex = 3;
 
 constexpr InitValue initValue(int m, int n)
@@ -284,7 +284,18 @@ constexpr std::array<InitRow, CabacCoveredContextCount> CabacInitValues {{
     InitRow {initValue(-6, 55), initValue(-16, 72), initValue(-14, 75), initValue(-12, 73)},
     InitRow {initValue(0, 58), initValue(-7, 69), initValue(-10, 79), initValue(-8, 76)},
     InitRow {initValue(0, 64), initValue(-4, 69), initValue(-9, 83), initValue(-7, 80)},
-    InitRow {initValue(-3, 74), initValue(-5, 74), initValue(-12, 92), initValue(-9, 88)}
+    InitRow {initValue(-3, 74), initValue(-5, 74), initValue(-12, 92), initValue(-9, 88)},
+    InitRow {initValue(-10, 90), initValue(-9, 86), initValue(-18, 108), initValue(-17, 110)},
+    InitRow {initValue(0, 70), initValue(2, 66), initValue(-4, 79), initValue(-11, 97)},
+    InitRow {initValue(-4, 29), initValue(-9, 34), initValue(-22, 69), initValue(-20, 84)},
+    InitRow {initValue(5, 31), initValue(1, 32), initValue(-16, 75), initValue(-11, 79)},
+    InitRow {initValue(7, 42), initValue(11, 31), initValue(-2, 58), initValue(-6, 73)},
+    InitRow {initValue(1, 59), initValue(5, 52), initValue(1, 58), initValue(-4, 74)},
+    InitRow {initValue(-2, 58), initValue(-2, 55), initValue(-13, 78), initValue(-13, 86)},
+    InitRow {initValue(-3, 72), initValue(-2, 67), initValue(-9, 83), initValue(-13, 96)},
+    InitRow {initValue(-3, 81), initValue(0, 73), initValue(-4, 81), initValue(-11, 97)},
+    InitRow {initValue(-11, 97), initValue(-8, 89), initValue(-13, 99), initValue(-19, 117)},
+    InitRow {initValue(0, 58), initValue(3, 52), initValue(-13, 81), initValue(-8, 78)}
 }};
 }
 

@@ -4,6 +4,7 @@
 #include "core/parser/video/h264/cabac/H264CabacDecoder.h"
 #include "core/parser/video/h264/cabac/H264CabacSyntaxReader.h"
 
+#include <algorithm>
 #include <QStringList>
 #include <QVector>
 
@@ -100,21 +101,36 @@ void appendCabacP8x8ZeroMvdMotionVectors(H264SliceDataContext &context,
     h264SetMvState(mb, context.mvStatesL0, context.mvStatesL1);
 }
 
-void appendCabacResidualZeroBlocks(MacroblockInfo &mb,
-                                   H264MacroblockCoeffState &coeffState,
-                                   const H264CabacMacroblockSyntaxResult &syntax)
+void appendCabacResidualBlocks(MacroblockInfo &mb,
+                               H264MacroblockCoeffState &coeffState,
+                               const H264CabacMacroblockSyntaxResult &syntax)
 {
-    for (int blockIndex : syntax.residualLuma4x4BlockIndices) {
+    for (int blockOffset = 0; blockOffset < syntax.residualLuma4x4BlockIndices.size(); ++blockOffset) {
+        const int blockIndex = syntax.residualLuma4x4BlockIndices.at(blockOffset);
         ResidualBlockInfo block;
         block.kind = QStringLiteral("luma4x4");
         block.component = 0;
         block.blockIndex = blockIndex;
         block.maxCoefficientCount = 16;
-        block.totalCoefficientCount = 0;
+        if (blockOffset < syntax.residualCodedBlockFlags.size()
+            && syntax.residualCodedBlockFlags.at(blockOffset) != 0) {
+            for (int i = 0; i < syntax.residualCoeffAbsLevelBlockIndices.size(); ++i) {
+                if (syntax.residualCoeffAbsLevelBlockIndices.at(i) != blockIndex
+                    || i >= syntax.residualCoeffAbsLevelScanIndices.size()
+                    || i >= syntax.residualCoefficientLevels.size()) {
+                    continue;
+                }
+                block.coefficients.append({syntax.residualCoeffAbsLevelScanIndices.at(i),
+                                           syntax.residualCoefficientLevels.at(i),
+                                           0});
+            }
+        }
+        block.totalCoefficientCount = block.coefficients.size();
         mb.residualBlocks.append(block);
         ++mb.residualBlockCount;
+        mb.residualCoefficientCount += block.totalCoefficientCount;
         if (blockIndex >= 0 && blockIndex < static_cast<int>(coeffState.luma.size())) {
-            coeffState.luma[blockIndex] = 0;
+            coeffState.luma[blockIndex] = block.totalCoefficientCount;
         }
     }
 
@@ -124,9 +140,20 @@ void appendCabacResidualZeroBlocks(MacroblockInfo &mb,
         block.component = component;
         block.blockIndex = 0;
         block.maxCoefficientCount = 4;
-        block.totalCoefficientCount = 0;
+        for (int i = 0; i < syntax.residualChromaDcCoeffComponents.size(); ++i) {
+            if (syntax.residualChromaDcCoeffComponents.at(i) != component
+                || i >= syntax.residualChromaDcCoeffScanIndices.size()
+                || i >= syntax.residualChromaDcCoefficientLevels.size()) {
+                continue;
+            }
+            block.coefficients.append({syntax.residualChromaDcCoeffScanIndices.at(i),
+                                       syntax.residualChromaDcCoefficientLevels.at(i),
+                                       0});
+        }
+        block.totalCoefficientCount = block.coefficients.size();
         mb.residualBlocks.append(block);
         ++mb.residualBlockCount;
+        mb.residualCoefficientCount += block.totalCoefficientCount;
     }
 }
 
@@ -252,10 +279,16 @@ H264CabacMacroblockSyntaxResult h264ReadCabacMacroblockSyntax(H264SliceDataConte
                     result.residualLastSignificantScanIndices = residual.lastSignificantScanIndices;
                     result.residualLastSignificantCoeffFlags = residual.lastSignificantCoeffFlags;
                     result.residualCoeffReverseScanIndices = residual.coeffReverseScanIndices;
+                    result.residualCoeffAbsLevelBlockIndices =
+                        residual.coeffAbsLevelBlockIndices;
                     result.residualCoeffAbsLevelScanIndices = residual.coeffAbsLevelScanIndices;
                     result.residualCoeffAbsLevelInferredFinalFlags = residual.coeffAbsLevelInferredFinalFlags;
                     result.residualCoeffAbsLevelPrefixFirstBins = residual.coeffAbsLevelPrefixFirstBins;
+                    result.residualCoeffAbsLevelPrefixFirstCtxIndices =
+                        residual.coeffAbsLevelPrefixFirstCtxIndices;
                     result.residualCoeffAbsLevelPrefixNextBins = residual.coeffAbsLevelPrefixNextBins;
+                    result.residualCoeffAbsLevelPrefixNextCtxIndices =
+                        residual.coeffAbsLevelPrefixNextCtxIndices;
                     result.residualCoeffAbsLevelPrefixTerminatedFlags =
                         residual.coeffAbsLevelPrefixTerminatedFlags;
                     result.residualCoeffAbsLevelPrefixOneCounts = residual.coeffAbsLevelPrefixOneCounts;
@@ -320,6 +353,16 @@ H264CabacMacroblockSyntaxResult h264ReadCabacMacroblockSyntax(H264SliceDataConte
                     }
                     result.residualChromaDcComponents = residual.components;
                     result.residualChromaDcCodedBlockFlags = residual.codedBlockFlags;
+                    result.residualChromaDcCoeffComponents =
+                        residual.coeffComponentIndices;
+                    result.residualChromaDcCoeffScanIndices =
+                        residual.coeffScanIndices;
+                    result.residualChromaDcCoeffAbsLevelMinus1Values =
+                        residual.coeffAbsLevelMinus1Values;
+                    result.residualChromaDcCoeffSignFlags =
+                        residual.coeffSignFlags;
+                    result.residualChromaDcCoefficientLevels =
+                        residual.coefficientLevels;
                     result.residualIncompleteComponent = residual.incompleteComponent;
                     result.residualIncompleteCategory =
                         residual.incompleteComponent >= 0 ? QStringLiteral("chroma_dc") : result.residualIncompleteCategory;
@@ -339,7 +382,14 @@ H264CabacMacroblockSyntaxResult h264ReadCabacMacroblockSyntax(H264SliceDataConte
                         return result;
                     }
                 }
-                result.parsedResidualCodedBlockFlagsZero = true;
+                result.parsedResidual = true;
+                result.parsedResidualCodedBlockFlagsZero =
+                    std::all_of(result.residualCodedBlockFlags.cbegin(),
+                                result.residualCodedBlockFlags.cend(),
+                                [](int flag) { return flag == 0; })
+                    && std::all_of(result.residualChromaDcCodedBlockFlags.cbegin(),
+                                   result.residualChromaDcCodedBlockFlags.cend(),
+                                   [](int flag) { return flag == 0; });
             }
             result.complete = true;
             return result;
@@ -369,7 +419,8 @@ bool h264AppendCabacMacroblockSyntaxSkeleton(H264SliceDataContext &context,
     if (!syntax.parsedSubMacroblockSyntax || !syntax.parsedCodedBlockPattern || syntax.mbType != 3 || !context.isPSlice) {
         return false;
     }
-    if (!syntax.parsedCodedBlockPatternZero && !syntax.parsedResidualCodedBlockFlagsZero) {
+    if (!syntax.parsedCodedBlockPatternZero && !syntax.parsedResidual
+        && !syntax.parsedResidualCodedBlockFlagsZero) {
         return false;
     }
 
@@ -387,9 +438,11 @@ bool h264AppendCabacMacroblockSyntaxSkeleton(H264SliceDataContext &context,
     appendCabacP8x8ZeroMvdMotionVectors(context, mb, syntax);
 
     H264MacroblockCoeffState coeffState;
-    if (syntax.parsedResidualCodedBlockFlagsZero) {
-        appendCabacResidualZeroBlocks(mb, coeffState, syntax);
-        mb.note = QStringLiteral("CABAC P_8x8 motion syntax parsed; covered luma4x4/chroma DC residual coded_block_flag values are zero.");
+    if (syntax.parsedResidual || syntax.parsedResidualCodedBlockFlagsZero) {
+        appendCabacResidualBlocks(mb, coeffState, syntax);
+        mb.note = syntax.parsedResidualCodedBlockFlagsZero
+            ? QStringLiteral("CABAC P_8x8 motion syntax parsed; covered luma4x4/chroma DC residual coded_block_flag values are zero.")
+            : QStringLiteral("CABAC P_8x8 motion and covered luma4x4/chroma DC residual coefficients were parsed.");
     } else {
         mb.note = QStringLiteral("CABAC P_8x8 motion syntax parsed with L0 vectors; coded_block_pattern is zero, so no residual blocks are present.");
     }
@@ -417,7 +470,7 @@ void h264AppendUnsupportedCabacMacroblocks(H264SliceDataContext &context)
             context.isISlice,
             context.slice.cabacInitIdc,
             context.currentQp,
-            255);
+            266);
 
     const H264CabacMacroblockSyntaxResult syntax =
         h264ReadCabacMacroblockSyntax(context, decoder, contexts);

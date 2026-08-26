@@ -22,6 +22,7 @@ struct H264CabacMacroblockSyntaxResult
     bool parsedSubMacroblockSyntax = false;
     bool parsedCodedBlockPattern = false;
     bool parsedCodedBlockPatternZero = false;
+    bool parsedResidual = false;
     bool parsedResidualCodedBlockFlagsZero = false;
     int mbType = -1;
     int firstSyntaxCtxIdx = -1;
@@ -41,10 +42,13 @@ struct H264CabacMacroblockSyntaxResult
     QVector<int> residualLastSignificantScanIndices;
     QVector<int> residualLastSignificantCoeffFlags;
     QVector<int> residualCoeffReverseScanIndices;
+    QVector<int> residualCoeffAbsLevelBlockIndices;
     QVector<int> residualCoeffAbsLevelScanIndices;
     QVector<int> residualCoeffAbsLevelInferredFinalFlags;
     QVector<int> residualCoeffAbsLevelPrefixFirstBins;
+    QVector<int> residualCoeffAbsLevelPrefixFirstCtxIndices;
     QVector<int> residualCoeffAbsLevelPrefixNextBins;
+    QVector<int> residualCoeffAbsLevelPrefixNextCtxIndices;
     QVector<int> residualCoeffAbsLevelPrefixTerminatedFlags;
     QVector<int> residualCoeffAbsLevelPrefixOneCounts;
     QVector<int> residualCoeffAbsLevelSuffixBins;
@@ -68,6 +72,11 @@ struct H264CabacMacroblockSyntaxResult
     QVector<int> residualCoefficientLevels;
     QVector<int> residualChromaDcComponents;
     QVector<int> residualChromaDcCodedBlockFlags;
+    QVector<int> residualChromaDcCoeffComponents;
+    QVector<int> residualChromaDcCoeffScanIndices;
+    QVector<int> residualChromaDcCoeffAbsLevelMinus1Values;
+    QVector<int> residualChromaDcCoeffSignFlags;
+    QVector<int> residualChromaDcCoefficientLevels;
     int residualIncompleteBlockIndex = -1;
     int residualIncompleteScanIndex = -1;
     int residualIncompleteComponent = -1;

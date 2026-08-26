@@ -7,36 +7,46 @@ namespace
 constexpr int Luma4x4SignificantCoeffFlagCtxIdxBase = 134;
 constexpr int Luma4x4SignificantCoeffFlagSkeletonCount = 15;
 constexpr int Luma4x4LastSignificantCoeffFlagCtxIdxBase = 166;
-constexpr int Luma4x4CoeffAbsLevelMinus1FirstCtxIdx = 248;
-constexpr int Luma4x4CoeffAbsLevelMinus1NextCtxIdx = 252;
-constexpr int Luma4x4CoeffAbsLevelMinus1ThirdCtxIdx = 253;
-constexpr int Luma4x4CoeffAbsLevelMinus1FourthCtxIdx = 254;
-constexpr int Luma4x4CoeffAbsLevelMinus1FifthCtxIdx = 255;
+constexpr int Luma4x4CoeffAbsLevelMinus1CtxIdxBase = 247;
+constexpr int Luma4x4CoeffAbsLevelMinus1RemainingCtxIdxBase = 252;
+constexpr int ChromaDcSignificantCoeffFlagCtxIdxBase = 149;
+constexpr int ChromaDcLastSignificantCoeffFlagCtxIdxBase = 181;
+constexpr int ChromaDcExplicitSignificantCoeffFlagCount = 3;
+constexpr int ChromaDcCoeffAbsLevelMinus1CtxIdxBase = 257;
+constexpr int ChromaDcCoeffAbsLevelMinus1RemainingCtxIdxBase = 262;
 constexpr int CoeffAbsLevelMinus1Ueg0Cutoff = 14;
 constexpr int CoeffAbsLevelMinus1Ueg0MaxPrefixOneCount = 29;
 
-struct Luma4x4CoeffAbsLevelPrefixContext
+struct Luma4x4CoeffAbsLevelContextState
 {
-    int ctxIdx = -1;
-    const char *name = "";
-    bool required = false;
+    int numDecodAbsLevelEq1 = 0;
+    int numDecodAbsLevelGt1 = 0;
 };
 
-constexpr Luma4x4CoeffAbsLevelPrefixContext Luma4x4CoeffAbsLevelAdditionalPrefixContexts[] = {
-    {Luma4x4CoeffAbsLevelMinus1NextCtxIdx, "next", true},
-    {Luma4x4CoeffAbsLevelMinus1ThirdCtxIdx, "third", false},
-    {Luma4x4CoeffAbsLevelMinus1FourthCtxIdx, "fourth", false},
-    {Luma4x4CoeffAbsLevelMinus1FifthCtxIdx, "fifth", false},
-    {Luma4x4CoeffAbsLevelMinus1FifthCtxIdx, "sixth", false},
-    {Luma4x4CoeffAbsLevelMinus1FifthCtxIdx, "seventh", false},
-    {Luma4x4CoeffAbsLevelMinus1FifthCtxIdx, "eighth", false},
-    {Luma4x4CoeffAbsLevelMinus1FifthCtxIdx, "ninth", false},
-    {Luma4x4CoeffAbsLevelMinus1FifthCtxIdx, "tenth", false},
-    {Luma4x4CoeffAbsLevelMinus1FifthCtxIdx, "eleventh", false},
-    {Luma4x4CoeffAbsLevelMinus1FifthCtxIdx, "twelfth", false},
-    {Luma4x4CoeffAbsLevelMinus1FifthCtxIdx, "thirteenth", false},
-    {Luma4x4CoeffAbsLevelMinus1FifthCtxIdx, "fourteenth", false},
+struct Luma4x4CoeffAbsLevelPrefixStep
+{
+    const char *name = "";
 };
+
+constexpr Luma4x4CoeffAbsLevelPrefixStep Luma4x4CoeffAbsLevelAdditionalPrefixSteps[] = {
+    {"next"}, {"third"}, {"fourth"}, {"fifth"}, {"sixth"},
+    {"seventh"}, {"eighth"}, {"ninth"}, {"tenth"}, {"eleventh"},
+    {"twelfth"}, {"thirteenth"}, {"fourteenth"},
+};
+
+int luma4x4CoeffAbsLevelMinus1FirstCtxIdx(const Luma4x4CoeffAbsLevelContextState &state)
+{
+    const int ctxIdxInc = state.numDecodAbsLevelGt1 != 0
+        ? 0
+        : (state.numDecodAbsLevelEq1 < 3 ? state.numDecodAbsLevelEq1 + 1 : 4);
+    return Luma4x4CoeffAbsLevelMinus1CtxIdxBase + ctxIdxInc;
+}
+
+int luma4x4CoeffAbsLevelMinus1RemainingCtxIdx(const Luma4x4CoeffAbsLevelContextState &state)
+{
+    const int ctxIdxInc = state.numDecodAbsLevelGt1 < 4 ? state.numDecodAbsLevelGt1 : 4;
+    return Luma4x4CoeffAbsLevelMinus1RemainingCtxIdxBase + ctxIdxInc;
+}
 
 int codedBlockFlagCtxIdx(H264CabacResidualBlockCategory category)
 {
@@ -94,10 +104,12 @@ H264CabacResidualChromaDcResult failedResidualChromaDcResult(const QString &code
 }
 
 void appendLuma4x4CoeffReverseScanOrder(H264CabacResidualLuma4x4Result &result,
-                                        int terminalScanIndex)
+                                        int terminalScanIndex,
+                                        int significantStartIndex)
 {
     result.coeffReverseScanIndices.append(terminalScanIndex);
     for (int i = result.significantScanIndices.size() - 1; i >= 0; --i) {
+        if (i < significantStartIndex) break;
         const int scanIndex = result.significantScanIndices.at(i);
         if (scanIndex == terminalScanIndex || result.significantCoeffFlags.at(i) == 0) {
             continue;
@@ -124,6 +136,7 @@ bool readLuma4x4CoeffSignFlagSkeleton(BitReader &reader,
     }
 
     result.coeffSignFlags.append(sign);
+    result.coeffAbsLevelBlockIndices.append(blockIndex);
     result.coeffAbsLevelMinus1Values.append(coeffAbsLevelMinus1);
     const int magnitude = coeffAbsLevelMinus1 + 1;
     result.coefficientLevels.append(sign != 0 ? -magnitude : magnitude);
@@ -326,14 +339,16 @@ bool readLuma4x4CoeffAbsLevelMinus1FirstBinSkeleton(BitReader &reader,
                                                     int blockIndex,
                                                     int scanIndex,
                                                     bool inferredFinalScan,
+                                                    const Luma4x4CoeffAbsLevelContextState &state,
                                                     H264CabacResidualLuma4x4Result &result)
 {
+    const int firstCtxIdx = luma4x4CoeffAbsLevelMinus1FirstCtxIdx(state);
     int bin = 0;
     if (!readLuma4x4CoeffAbsLevelMinus1PrefixBinSkeleton(
             reader,
             decoder,
             contexts,
-            Luma4x4CoeffAbsLevelMinus1FirstCtxIdx,
+            firstCtxIdx,
             QStringLiteral("first"),
             blockIndex,
             scanIndex,
@@ -345,6 +360,7 @@ bool readLuma4x4CoeffAbsLevelMinus1FirstBinSkeleton(BitReader &reader,
     result.coeffAbsLevelScanIndices.append(scanIndex);
     result.coeffAbsLevelInferredFinalFlags.append(inferredFinalScan ? 1 : 0);
     result.coeffAbsLevelPrefixFirstBins.append(bin);
+    result.coeffAbsLevelPrefixFirstCtxIndices.append(firstCtxIdx);
     result.coeffAbsLevelReadyForValueFlags.append(0);
     result.incompleteBlockIndex = blockIndex;
     result.incompleteScanIndex = scanIndex;
@@ -361,19 +377,16 @@ bool readLuma4x4CoeffAbsLevelMinus1FirstBinSkeleton(BitReader &reader,
     }
 
     int prefixOneCount = 1;
-    for (const Luma4x4CoeffAbsLevelPrefixContext &prefixContext :
-         Luma4x4CoeffAbsLevelAdditionalPrefixContexts) {
-        if (!contexts.isInitialized(prefixContext.ctxIdx) && !prefixContext.required) {
-            break;
-        }
-
+    const int remainingCtxIdx = luma4x4CoeffAbsLevelMinus1RemainingCtxIdx(state);
+    for (const Luma4x4CoeffAbsLevelPrefixStep &prefixStep :
+         Luma4x4CoeffAbsLevelAdditionalPrefixSteps) {
         int prefixBin = 0;
         if (!readLuma4x4CoeffAbsLevelMinus1PrefixBinSkeleton(
                 reader,
                 decoder,
                 contexts,
-                prefixContext.ctxIdx,
-                QString::fromLatin1(prefixContext.name),
+                remainingCtxIdx,
+                QString::fromLatin1(prefixStep.name),
                 blockIndex,
                 scanIndex,
                 &prefixBin,
@@ -382,6 +395,7 @@ bool readLuma4x4CoeffAbsLevelMinus1FirstBinSkeleton(BitReader &reader,
         }
 
         result.coeffAbsLevelPrefixNextBins.append(prefixBin);
+        result.coeffAbsLevelPrefixNextCtxIndices.append(remainingCtxIdx);
         if (prefixBin == 0) {
             appendLuma4x4CoeffAbsLevelPrefixState(result, true, prefixOneCount);
             return readLuma4x4CoeffSignFlagSkeleton(
@@ -418,14 +432,14 @@ bool readLuma4x4CoeffReverseOrderSkeleton(BitReader &reader,
                                           H264CabacDecoder &decoder,
                                           H264CabacContextModelSet &contexts,
                                           int blockIndex,
+                                          int reverseScanStartIndex,
                                           H264CabacResidualLuma4x4Result &result)
 {
-    const int coefficientLimit = result.coeffReverseScanIndices.size() < 2
-        ? result.coeffReverseScanIndices.size()
-        : 2;
-    for (int i = 0; i < coefficientLimit; ++i) {
+    Luma4x4CoeffAbsLevelContextState state;
+    for (int i = reverseScanStartIndex; i < result.coeffReverseScanIndices.size(); ++i) {
         const int scanIndex = result.coeffReverseScanIndices.at(i);
         const int signCountBefore = result.coeffSignFlags.size();
+        const int valueCountBefore = result.coeffAbsLevelMinus1Values.size();
         if (!readLuma4x4CoeffAbsLevelMinus1FirstBinSkeleton(
                 reader,
                 decoder,
@@ -433,14 +447,27 @@ bool readLuma4x4CoeffReverseOrderSkeleton(BitReader &reader,
                 blockIndex,
                 scanIndex,
                 scanIndex == Luma4x4SignificantCoeffFlagSkeletonCount,
+                state,
                 result)) {
             return false;
+        }
+        if (result.coeffAbsLevelMinus1Values.size() > valueCountBefore) {
+            if (result.coeffAbsLevelMinus1Values.last() == 0) {
+                ++state.numDecodAbsLevelEq1;
+            } else {
+                ++state.numDecodAbsLevelGt1;
+            }
         }
         if (result.incompleteStage != QStringLiteral("residual_coefficients")
             || result.coeffSignFlags.size() == signCountBefore) {
             return true;
         }
     }
+    result.incompleteBlockIndex = -1;
+    result.incompleteScanIndex = -1;
+    result.incompleteStage.clear();
+    result.diagnosticCode.clear();
+    result.diagnosticMessage.clear();
     return true;
 }
 
@@ -450,6 +477,8 @@ bool readLuma4x4SignificantCoeffFlagsSkeleton(BitReader &reader,
                                               int blockIndex,
                                               H264CabacResidualLuma4x4Result &result)
 {
+    const int significantStartIndex = result.significantScanIndices.size();
+    const int reverseScanStartIndex = result.coeffReverseScanIndices.size();
     for (int scanIndex = 0; scanIndex < Luma4x4SignificantCoeffFlagSkeletonCount; ++scanIndex) {
         const int ctxIdx = Luma4x4SignificantCoeffFlagCtxIdxBase + scanIndex;
         if (!contexts.isInitialized(ctxIdx)) {
@@ -499,16 +528,194 @@ bool readLuma4x4SignificantCoeffFlagsSkeleton(BitReader &reader,
             result.lastSignificantScanIndices.append(scanIndex);
             result.lastSignificantCoeffFlags.append(lastBin);
             if (lastBin != 0) {
-                appendLuma4x4CoeffReverseScanOrder(result, scanIndex);
-                return readLuma4x4CoeffReverseOrderSkeleton(reader, decoder, contexts, blockIndex, result);
+                appendLuma4x4CoeffReverseScanOrder(result, scanIndex, significantStartIndex);
+                return readLuma4x4CoeffReverseOrderSkeleton(
+                    reader, decoder, contexts, blockIndex, reverseScanStartIndex, result);
             }
 
             continue;
         }
     }
 
-    appendLuma4x4CoeffReverseScanOrder(result, Luma4x4SignificantCoeffFlagSkeletonCount);
-    return readLuma4x4CoeffReverseOrderSkeleton(reader, decoder, contexts, blockIndex, result);
+    appendLuma4x4CoeffReverseScanOrder(
+        result, Luma4x4SignificantCoeffFlagSkeletonCount, significantStartIndex);
+    return readLuma4x4CoeffReverseOrderSkeleton(
+        reader, decoder, contexts, blockIndex, reverseScanStartIndex, result);
+}
+
+bool readChromaDcCoeffLevel(BitReader &reader,
+                            H264CabacDecoder &decoder,
+                            H264CabacContextModelSet &contexts,
+                            int component,
+                            int scanIndex,
+                            Luma4x4CoeffAbsLevelContextState &state,
+                            H264CabacResidualChromaDcResult &result)
+{
+    const int firstCtxIdx = ChromaDcCoeffAbsLevelMinus1CtxIdxBase
+        + (state.numDecodAbsLevelGt1 != 0
+               ? 0
+               : (state.numDecodAbsLevelEq1 < 3 ? state.numDecodAbsLevelEq1 + 1 : 4));
+    if (!contexts.isInitialized(firstCtxIdx)) {
+        result.diagnosticCode = QStringLiteral("cabac_context_uninitialized");
+        result.diagnosticMessage = QStringLiteral("CABAC context %1 for chroma_dc coeff_abs_level_minus1[%2][%3] is not initialized.")
+                                       .arg(firstCtxIdx).arg(component).arg(scanIndex);
+        return false;
+    }
+
+    int bin = 0;
+    if (!decoder.decodeBin(reader, contexts, firstCtxIdx, &bin)) {
+        result.diagnosticCode = QStringLiteral("cabac_bin_decode_failed");
+        result.diagnosticMessage = QStringLiteral("CABAC bin decoding failed while reading chroma_dc coeff_abs_level_minus1[%1][%2].")
+                                       .arg(component).arg(scanIndex);
+        return false;
+    }
+    result.coeffAbsLevelPrefixFirstCtxIndices.append(firstCtxIdx);
+
+    int coeffAbsLevelMinus1 = 0;
+    if (bin != 0) {
+        int prefixOneCount = 1;
+        const int remainingCtxIdx = ChromaDcCoeffAbsLevelMinus1RemainingCtxIdxBase
+            + (state.numDecodAbsLevelGt1 < 4 ? state.numDecodAbsLevelGt1 : 4);
+        while (prefixOneCount < CoeffAbsLevelMinus1Ueg0Cutoff) {
+            if (!contexts.isInitialized(remainingCtxIdx)) {
+                result.diagnosticCode = QStringLiteral("cabac_context_uninitialized");
+                result.diagnosticMessage = QStringLiteral("CABAC context %1 for chroma_dc coeff_abs_level_minus1[%2][%3] continuation is not initialized.")
+                                               .arg(remainingCtxIdx).arg(component).arg(scanIndex);
+                return false;
+            }
+            if (!decoder.decodeBin(reader, contexts, remainingCtxIdx, &bin)) {
+                result.diagnosticCode = QStringLiteral("cabac_bin_decode_failed");
+                result.diagnosticMessage = QStringLiteral("CABAC bin decoding failed while reading chroma_dc coeff_abs_level_minus1[%1][%2] continuation.")
+                                               .arg(component).arg(scanIndex);
+                return false;
+            }
+            result.coeffAbsLevelPrefixNextCtxIndices.append(remainingCtxIdx);
+            if (bin == 0) {
+                coeffAbsLevelMinus1 = prefixOneCount;
+                break;
+            }
+            ++prefixOneCount;
+        }
+
+        if (prefixOneCount == CoeffAbsLevelMinus1Ueg0Cutoff) {
+            QVector<int> ueg0Bins;
+            int ueg0PrefixOneCount = 0;
+            while (true) {
+                if (!decoder.decodeBypassBin(reader, &bin)) {
+                    result.diagnosticCode = QStringLiteral("cabac_bin_decode_failed");
+                    result.diagnosticMessage = QStringLiteral("CABAC bypass decoding failed while reading chroma_dc coeff_abs_level_minus1[%1][%2] UEG0 prefix.")
+                                                   .arg(component).arg(scanIndex);
+                    return false;
+                }
+                ueg0Bins.append(bin);
+                if (bin == 0) break;
+                if (++ueg0PrefixOneCount > CoeffAbsLevelMinus1Ueg0MaxPrefixOneCount) {
+                    result.diagnosticCode = QStringLiteral("cabac_residual_invalid");
+                    result.diagnosticMessage = QStringLiteral("CABAC chroma_dc coeff_abs_level_minus1[%1][%2] UEG0 prefix exceeds the safety limit.")
+                                                   .arg(component).arg(scanIndex);
+                    return false;
+                }
+            }
+            for (int i = 0; i < ueg0PrefixOneCount; ++i) {
+                if (!decoder.decodeBypassBin(reader, &bin)) {
+                    result.diagnosticCode = QStringLiteral("cabac_bin_decode_failed");
+                    result.diagnosticMessage = QStringLiteral("CABAC bypass decoding failed while reading chroma_dc coeff_abs_level_minus1[%1][%2] UEG0 information.")
+                                                   .arg(component).arg(scanIndex);
+                    return false;
+                }
+                ueg0Bins.append(bin);
+            }
+            const H264CabacCoeffAbsLevelRemainingInput input{prefixOneCount, ueg0Bins};
+            if (!h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix(input, &coeffAbsLevelMinus1)) {
+                result.diagnosticCode = QStringLiteral("cabac_residual_invalid");
+                result.diagnosticMessage = QStringLiteral("CABAC chroma_dc coeff_abs_level_minus1[%1][%2] has an invalid UEG0 suffix.")
+                                               .arg(component).arg(scanIndex);
+                return false;
+            }
+        }
+    }
+
+    int sign = 0;
+    if (!decoder.decodeBypassBin(reader, &sign)) {
+        result.diagnosticCode = QStringLiteral("cabac_bin_decode_failed");
+        result.diagnosticMessage = QStringLiteral("CABAC bypass decoding failed while reading chroma_dc coeff_sign_flag[%1][%2].")
+                                       .arg(component).arg(scanIndex);
+        return false;
+    }
+    const int magnitude = coeffAbsLevelMinus1 + 1;
+    result.coeffComponentIndices.append(component);
+    result.coeffScanIndices.append(scanIndex);
+    result.coeffAbsLevelMinus1Values.append(coeffAbsLevelMinus1);
+    result.coeffSignFlags.append(sign);
+    result.coefficientLevels.append(sign != 0 ? -magnitude : magnitude);
+    if (coeffAbsLevelMinus1 == 0) ++state.numDecodAbsLevelEq1;
+    else ++state.numDecodAbsLevelGt1;
+    return true;
+}
+
+bool readChromaDcCoefficients(BitReader &reader,
+                              H264CabacDecoder &decoder,
+                              H264CabacContextModelSet &contexts,
+                              int component,
+                              H264CabacResidualChromaDcResult &result)
+{
+    QVector<int> significantScanIndices;
+    int terminalScanIndex = ChromaDcExplicitSignificantCoeffFlagCount;
+    for (int scanIndex = 0; scanIndex < ChromaDcExplicitSignificantCoeffFlagCount; ++scanIndex) {
+        const int ctxIdx = ChromaDcSignificantCoeffFlagCtxIdxBase + scanIndex;
+        if (!contexts.isInitialized(ctxIdx)) {
+            result.diagnosticCode = QStringLiteral("cabac_context_uninitialized");
+            result.diagnosticMessage = QStringLiteral("CABAC context %1 for chroma_dc significant_coeff_flag[%2][%3] is not initialized.")
+                                           .arg(ctxIdx).arg(component).arg(scanIndex);
+            return false;
+        }
+        int significant = 0;
+        if (!decoder.decodeBin(reader, contexts, ctxIdx, &significant)) {
+            result.diagnosticCode = QStringLiteral("cabac_bin_decode_failed");
+            result.diagnosticMessage = QStringLiteral("CABAC bin decoding failed while reading chroma_dc significant_coeff_flag[%1][%2].")
+                                           .arg(component).arg(scanIndex);
+            return false;
+        }
+        result.significantComponentIndices.append(component);
+        result.significantScanIndices.append(scanIndex);
+        result.significantCoeffFlags.append(significant);
+        if (significant == 0) continue;
+        significantScanIndices.append(scanIndex);
+
+        const int lastCtxIdx = ChromaDcLastSignificantCoeffFlagCtxIdxBase + scanIndex;
+        if (!contexts.isInitialized(lastCtxIdx)) {
+            result.diagnosticCode = QStringLiteral("cabac_context_uninitialized");
+            result.diagnosticMessage = QStringLiteral("CABAC context %1 for chroma_dc last_significant_coeff_flag[%2][%3] is not initialized.")
+                                           .arg(lastCtxIdx).arg(component).arg(scanIndex);
+            return false;
+        }
+        int last = 0;
+        if (!decoder.decodeBin(reader, contexts, lastCtxIdx, &last)) {
+            result.diagnosticCode = QStringLiteral("cabac_bin_decode_failed");
+            result.diagnosticMessage = QStringLiteral("CABAC bin decoding failed while reading chroma_dc last_significant_coeff_flag[%1][%2].")
+                                           .arg(component).arg(scanIndex);
+            return false;
+        }
+        result.lastSignificantComponentIndices.append(component);
+        result.lastSignificantScanIndices.append(scanIndex);
+        result.lastSignificantCoeffFlags.append(last);
+        if (last != 0) {
+            terminalScanIndex = scanIndex;
+            break;
+        }
+    }
+
+    QVector<int> reverseScanIndices{terminalScanIndex};
+    for (int i = significantScanIndices.size() - 1; i >= 0; --i) {
+        if (significantScanIndices.at(i) != terminalScanIndex)
+            reverseScanIndices.append(significantScanIndices.at(i));
+    }
+    Luma4x4CoeffAbsLevelContextState state;
+    for (int scanIndex : reverseScanIndices) {
+        if (!readChromaDcCoeffLevel(reader, decoder, contexts, component, scanIndex, state, result))
+            return false;
+    }
+    return true;
 }
 }
 
@@ -689,14 +896,17 @@ H264CabacResidualChromaDcResult h264ReadCabacResidualChromaDcCodedBlockFlagsZero
         result.ok = true;
         result.components.append(component);
         result.codedBlockFlags.append(block.codedBlockFlag);
-        if (!block.complete) {
+        if (block.codedBlockFlag != 0) {
             result.incompleteComponent = component;
             result.incompleteStage = QStringLiteral("significant_coeff_flag");
-            result.diagnosticCode = block.diagnosticCode;
-            result.diagnosticMessage =
-                QStringLiteral("CABAC chroma_dc coded_block_flag[%1] is 1; significant_coeff_flag parsing is not implemented.")
-                    .arg(component);
-            return result;
+            if (!readChromaDcCoefficients(reader, decoder, contexts, component, result)) {
+                result.ok = false;
+                return result;
+            }
+            result.incompleteComponent = -1;
+            result.incompleteStage.clear();
+            result.diagnosticCode.clear();
+            result.diagnosticMessage.clear();
         }
     }
 
@@ -752,8 +962,11 @@ H264CabacResidualLuma4x4Result h264ReadCabacResidualLuma4x4CodedBlockFlagsZero(
                         blockIndex,
                         result)) {
                     result.ok = false;
+                    return result;
                 }
-                return result;
+                if (!result.incompleteStage.isEmpty()) {
+                    return result;
+                }
             }
         }
     }

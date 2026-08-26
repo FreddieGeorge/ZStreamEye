@@ -294,7 +294,7 @@ H264CabacContextModelSet initializedP8x8LumaResidualCoeffLevelContextsWithFifthC
     int fifthPrefixBin)
 {
     H264CabacContextModelSet contexts =
-        H264CabacContextModelInitializer::initializeSliceContexts(false, 0, currentQp, 255);
+        H264CabacContextModelInitializer::initializeSliceContexts(false, 0, currentQp, 256);
     contexts.setModel(14, {0, 0});
     contexts.setModel(15, {0, 0});
     contexts.setModel(16, {0, 1});
@@ -1150,7 +1150,7 @@ void testReadCabacMacroblockSyntaxP8x8ChromaDcResidualCbfZero()
             "CABAC macroblock syntax P_8x8 chroma DC residual CBF values");
 }
 
-void testReadCabacMacroblockSyntaxP8x8ChromaDcResidualCbfNonZeroIncomplete()
+void testReadCabacMacroblockSyntaxP8x8ChromaDcResidualCbfNonZero()
 {
     BitReader reader(QByteArray::fromHex("000000000000000000000000"));
     H264CabacDecoder decoder = initializedDecoder(reader);
@@ -1163,7 +1163,7 @@ void testReadCabacMacroblockSyntaxP8x8ChromaDcResidualCbfNonZeroIncomplete()
     slice.numRefIdxL0ActiveMinus1 = 0;
     H264SliceDataContext context(reader, slice, pps, sps);
 
-    H264CabacContextModelSet contexts(98);
+    H264CabacContextModelSet contexts(267);
     contexts.setModel(14, {0, 0});
     contexts.setModel(15, {0, 0});
     contexts.setModel(16, {0, 1});
@@ -1177,32 +1177,28 @@ void testReadCabacMacroblockSyntaxP8x8ChromaDcResidualCbfNonZeroIncomplete()
     contexts.setModel(77, {0, 1});
     contexts.setModel(81, {0, 0});
     contexts.setModel(97, {0, 1});
+    contexts.setModel(149, {0, 0});
+    contexts.setModel(150, {0, 0});
+    contexts.setModel(151, {0, 0});
+    contexts.setModel(258, {0, 0});
 
     const H264CabacMacroblockSyntaxResult result =
         h264ReadCabacMacroblockSyntax(context, decoder, contexts);
-    require(result.ok, "CABAC macroblock syntax P_8x8 chroma DC non-zero CBF prefix result");
-    require(!result.complete, "CABAC macroblock syntax P_8x8 chroma DC non-zero CBF incomplete");
+    require(result.ok && result.complete,
+            "CABAC macroblock syntax P_8x8 chroma DC non-zero CBF complete");
     require(result.parsedCodedBlockPattern, "CABAC macroblock syntax P_8x8 chroma DC non-zero CBF keeps CBP");
-    require(result.residualChromaDcComponents.size() == 1,
-            "CABAC macroblock syntax P_8x8 chroma DC non-zero CBF partial component count");
-    require(result.residualChromaDcCodedBlockFlags.size() == 1,
-            "CABAC macroblock syntax P_8x8 chroma DC non-zero CBF partial flag count");
-    require(result.residualChromaDcComponents[0] == 0,
-            "CABAC macroblock syntax P_8x8 chroma DC non-zero CBF partial component");
-    require(result.residualChromaDcCodedBlockFlags[0] == 1,
-            "CABAC macroblock syntax P_8x8 chroma DC non-zero CBF partial flag");
-    require(result.residualIncompleteComponent == 0,
-            "CABAC macroblock syntax P_8x8 chroma DC non-zero CBF incomplete component");
-    require(result.residualIncompleteCategory == QStringLiteral("chroma_dc"),
-            "CABAC macroblock syntax P_8x8 chroma DC non-zero CBF incomplete category");
-    require(result.residualIncompleteStage == QStringLiteral("significant_coeff_flag"),
-            "CABAC macroblock syntax P_8x8 chroma DC non-zero CBF incomplete stage");
-    require(result.diagnosticCode == QStringLiteral("cabac_residual_incomplete"),
-            "CABAC macroblock syntax P_8x8 chroma DC non-zero CBF diagnostic");
-    require(result.diagnosticMessage.contains(QStringLiteral("chroma_dc coded_block_flag[0]")),
-            "CABAC macroblock syntax P_8x8 chroma DC non-zero CBF indexed message");
-    require(result.diagnosticMessage.contains(QStringLiteral("significant_coeff_flag")),
-            "CABAC macroblock syntax P_8x8 chroma DC non-zero CBF stage message");
+    require(result.parsedResidual && !result.parsedResidualCodedBlockFlagsZero,
+            "CABAC macroblock syntax marks non-zero chroma DC residual parsed");
+    require(result.residualChromaDcComponents == QVector<int>({0, 1}),
+            "CABAC macroblock syntax preserves chroma DC components");
+    require(result.residualChromaDcCodedBlockFlags == QVector<int>({1, 1}),
+            "CABAC macroblock syntax preserves non-zero chroma DC CBF values");
+    require(result.residualChromaDcCoeffComponents == QVector<int>({0, 1}),
+            "CABAC macroblock syntax propagates chroma DC coefficient components");
+    require(result.residualChromaDcCoeffScanIndices == QVector<int>({3, 3}),
+            "CABAC macroblock syntax propagates chroma DC scan indices");
+    require(result.residualChromaDcCoefficientLevels == QVector<int>({1, 1}),
+            "CABAC macroblock syntax propagates chroma DC levels");
 }
 
 void testReadCabacMacroblockSyntaxP8x8ResidualCbfNonZeroIncomplete()
@@ -2632,10 +2628,10 @@ void testReadResidualLuma4x4SignificantCoeffFlagOneIncomplete()
 
 void testReadResidualLuma4x4MultipleSignificantReverseScanOrder()
 {
-    BitReader reader(QByteArray::fromHex("000000"));
+    BitReader reader(QByteArray::fromHex("0000000000000000"));
     H264CabacDecoder decoder = initializedDecoder(reader);
 
-    H264CabacContextModelSet contexts(249);
+    H264CabacContextModelSet contexts(250);
     contexts.setModel(85, {0, 1});
     contexts.setModel(134, {0, 1});
     contexts.setModel(135, {0, 0});
@@ -2643,6 +2639,7 @@ void testReadResidualLuma4x4MultipleSignificantReverseScanOrder()
     contexts.setModel(166, {0, 0});
     contexts.setModel(168, {0, 1});
     contexts.setModel(248, {0, 0});
+    contexts.setModel(249, {0, 0});
 
     const H264CabacResidualLuma4x4Result result =
         h264ReadCabacResidualLuma4x4CodedBlockFlagsZero(reader, decoder, contexts, 8);
@@ -2680,6 +2677,10 @@ void testReadResidualLuma4x4MultipleSignificantReverseScanOrder()
     require(result.coeffAbsLevelPrefixFirstBins[0] == 0
                 && result.coeffAbsLevelPrefixFirstBins[1] == 0,
             "CABAC residual luma4x4 multiple significant first prefix values");
+    require(result.coeffAbsLevelPrefixFirstCtxIndices == QVector<int>({248, 249}),
+            "CABAC residual luma4x4 magnitude-one coefficients adapt first contexts");
+    require(result.coeffAbsLevelMinus1Values == QVector<int>({0, 0}),
+            "CABAC residual luma4x4 magnitude-one coefficient values");
     require(result.coeffSignFlags.size() == 2,
             "CABAC residual luma4x4 multiple significant sign count");
     require(result.coeffSignFlags[0] == 0 && result.coeffSignFlags[1] == 0,
@@ -2715,10 +2716,14 @@ void testReadResidualLuma4x4CoeffAbsLevelNextBinZeroIncomplete()
             "CABAC residual luma4x4 coeff level next-bin zero first bin count");
     require(result.coeffAbsLevelPrefixFirstBins[0] == 1,
             "CABAC residual luma4x4 coeff level next-bin zero first bin value");
+    require(result.coeffAbsLevelPrefixFirstCtxIndices == QVector<int>{248},
+            "CABAC residual luma4x4 coeff level first context");
     require(result.coeffAbsLevelPrefixNextBins.size() == 1,
             "CABAC residual luma4x4 coeff level next-bin zero bin count");
     require(result.coeffAbsLevelPrefixNextBins[0] == 0,
             "CABAC residual luma4x4 coeff level next-bin zero bin value");
+    require(result.coeffAbsLevelPrefixNextCtxIndices == QVector<int>{252},
+            "CABAC residual luma4x4 coeff level continuation context");
     require(result.coeffAbsLevelPrefixTerminatedFlags.size() == 1,
             "CABAC residual luma4x4 coeff level next-bin zero terminated count");
     require(result.coeffAbsLevelPrefixTerminatedFlags[0] == 1,
@@ -2743,6 +2748,74 @@ void testReadResidualLuma4x4CoeffAbsLevelNextBinZeroIncomplete()
             "CABAC residual luma4x4 coeff level next-bin zero message");
     require(result.diagnosticMessage.contains(QStringLiteral("coeff_sign_flag")),
             "CABAC residual luma4x4 coeff level next-bin zero sign message");
+}
+
+void testReadResidualLuma4x4GreaterThanOneAdaptsNextFirstContext()
+{
+    BitReader reader(QByteArray::fromHex("00000000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    H264CabacContextModelSet contexts(253);
+    contexts.setModel(85, {0, 1});
+    contexts.setModel(134, {0, 1});
+    contexts.setModel(135, {0, 0});
+    contexts.setModel(136, {0, 1});
+    contexts.setModel(166, {0, 0});
+    contexts.setModel(168, {0, 1});
+    contexts.setModel(247, {0, 0});
+    contexts.setModel(248, {0, 1});
+    contexts.setModel(252, {0, 0});
+
+    const H264CabacResidualLuma4x4Result result =
+        h264ReadCabacResidualLuma4x4CodedBlockFlagsZero(reader, decoder, contexts, 8);
+
+    require(result.ok, "CABAC residual greater-than-one adaptive context result");
+    require(result.coeffAbsLevelMinus1Values == QVector<int>({1, 0}),
+            "CABAC residual greater-than-one adaptive coefficient values");
+    require(result.coeffAbsLevelPrefixFirstCtxIndices == QVector<int>({248, 247}),
+            "CABAC residual greater-than-one selects ctxIdx 247 for the next coefficient");
+    require(result.coeffAbsLevelPrefixNextCtxIndices == QVector<int>{252},
+            "CABAC residual first coefficient continuation uses state-derived ctxIdx 252");
+}
+
+void testReadResidualLuma4x4WalksAllCoefficientsAndSaturatesContext()
+{
+    BitReader reader(QByteArray::fromHex("00000000000000000000000000000000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    H264CabacContextModelSet contexts(257);
+    contexts.setModel(85, {0, 1});
+    for (int ctxIdx = 134; ctxIdx <= 138; ++ctxIdx) {
+        contexts.setModel(ctxIdx, {0, 1});
+    }
+    for (int ctxIdx = 166; ctxIdx <= 169; ++ctxIdx) {
+        contexts.setModel(ctxIdx, {0, 0});
+    }
+    contexts.setModel(170, {0, 1});
+    contexts.setModel(247, {0, 1});
+    contexts.setModel(248, {0, 1});
+    for (int ctxIdx = 252; ctxIdx <= 256; ++ctxIdx) {
+        contexts.setModel(ctxIdx, {0, 0});
+    }
+
+    const H264CabacResidualLuma4x4Result result =
+        h264ReadCabacResidualLuma4x4CodedBlockFlagsZero(reader, decoder, contexts, 8);
+
+    require(result.ok, "CABAC residual full reverse-scan coefficient loop result");
+    require(result.coeffReverseScanIndices == QVector<int>({4, 3, 2, 1, 0}),
+            "CABAC residual full reverse-scan coefficient order");
+    require(result.coeffAbsLevelScanIndices == result.coeffReverseScanIndices,
+            "CABAC residual reads every saved reverse-scan coefficient");
+    require(result.coeffAbsLevelMinus1Values == QVector<int>(5, 1),
+            "CABAC residual full loop coefficient values");
+    require(result.coeffAbsLevelPrefixFirstCtxIndices
+                == QVector<int>({248, 247, 247, 247, 247}),
+            "CABAC residual greater-than-one state saturates first-bin context");
+    require(result.coeffAbsLevelPrefixNextCtxIndices
+                == QVector<int>({252, 253, 254, 255, 256}),
+            "CABAC residual continuation context reaches and saturates at ctxIdx 256");
+    require(result.coeffSignFlags.size() == 5,
+            "CABAC residual full loop reads every coefficient sign");
 }
 
 void testReadResidualLuma4x4CoeffAbsLevelNextBinOneIncomplete()
@@ -3648,12 +3721,13 @@ void testReadResidualLuma4x4LastSignificantZeroIncomplete()
     BitReader reader(QByteArray::fromHex("000000000000"));
     H264CabacDecoder decoder = initializedDecoder(reader);
 
-    H264CabacContextModelSet contexts(249);
+    H264CabacContextModelSet contexts(250);
     contexts.setModel(85, {0, 1});
     setLuma4x4SignificantZeroContexts(contexts);
     contexts.setModel(134, {0, 1});
     contexts.setModel(166, {0, 0});
     contexts.setModel(248, {0, 0});
+    contexts.setModel(249, {0, 0});
 
     const H264CabacResidualLuma4x4Result result =
         h264ReadCabacResidualLuma4x4CodedBlockFlagsZero(reader, decoder, contexts, 8);
@@ -3687,6 +3761,8 @@ void testReadResidualLuma4x4LastSignificantZeroIncomplete()
     require(result.coeffAbsLevelPrefixFirstBins[0] == 0
                 && result.coeffAbsLevelPrefixFirstBins[1] == 0,
             "CABAC residual luma4x4 last-significant zero first prefix values");
+    require(result.coeffAbsLevelPrefixFirstCtxIndices == QVector<int>({248, 249}),
+            "CABAC residual luma4x4 inferred-final path adapts first contexts");
     require(result.incompleteBlockIndex == 12,
             "CABAC residual luma4x4 last-significant zero incomplete block index");
     require(result.incompleteScanIndex == 0,
@@ -3780,32 +3856,58 @@ void testReadResidualChromaDcCodedBlockFlagsZeroWithChromaAcPresent()
             "CABAC residual chroma DC CBF-zero with AC values");
 }
 
-void testReadResidualChromaDcCodedBlockFlagNonZeroPartial()
+void testReadResidualChromaDcCodedBlockFlagNonZeroInferredFinal()
 {
-    BitReader reader(QByteArray::fromHex("0000"));
+    BitReader reader(QByteArray::fromHex("000000000000"));
     H264CabacDecoder decoder = initializedDecoder(reader);
 
-    H264CabacContextModelSet contexts(98);
+    H264CabacContextModelSet contexts(267);
     contexts.setModel(97, {0, 1});
+    contexts.setModel(149, {0, 0});
+    contexts.setModel(150, {0, 0});
+    contexts.setModel(151, {0, 0});
+    contexts.setModel(258, {0, 0});
 
     const H264CabacResidualChromaDcResult result =
         h264ReadCabacResidualChromaDcCodedBlockFlagsZero(reader, decoder, contexts, 1, 1);
-    require(result.ok, "CABAC residual chroma DC non-zero CBF partial result");
-    require(!result.complete, "CABAC residual chroma DC non-zero CBF partial incomplete");
-    require(result.components.size() == 1, "CABAC residual chroma DC non-zero CBF partial component count");
-    require(result.codedBlockFlags.size() == 1, "CABAC residual chroma DC non-zero CBF partial flag count");
-    require(result.components[0] == 0, "CABAC residual chroma DC non-zero CBF partial component");
-    require(result.codedBlockFlags[0] == 1, "CABAC residual chroma DC non-zero CBF partial flag");
-    require(result.incompleteComponent == 0,
-            "CABAC residual chroma DC non-zero CBF partial incomplete component");
-    require(result.incompleteStage == QStringLiteral("significant_coeff_flag"),
-            "CABAC residual chroma DC non-zero CBF partial incomplete stage");
-    require(result.diagnosticCode == QStringLiteral("cabac_residual_incomplete"),
-            "CABAC residual chroma DC non-zero CBF partial diagnostic");
-    require(result.diagnosticMessage.contains(QStringLiteral("chroma_dc coded_block_flag[0]")),
-            "CABAC residual chroma DC non-zero CBF partial indexed message");
-    require(result.diagnosticMessage.contains(QStringLiteral("significant_coeff_flag")),
-            "CABAC residual chroma DC non-zero CBF partial stage message");
+    require(result.ok && result.complete, "CABAC residual chroma DC inferred-final complete");
+    require(result.codedBlockFlags.size() == 2
+                && result.codedBlockFlags[0] == 1 && result.codedBlockFlags[1] == 1,
+            "CABAC residual chroma DC inferred-final CBF values");
+    require(result.coeffComponentIndices == QVector<int>({0, 1}),
+            "CABAC residual chroma DC inferred-final component isolation");
+    require(result.coeffScanIndices == QVector<int>({3, 3}),
+            "CABAC residual chroma DC inferred-final scan indices");
+    require(result.coefficientLevels == QVector<int>({1, 1}),
+            "CABAC residual chroma DC inferred-final levels");
+    require(result.coeffAbsLevelPrefixFirstCtxIndices == QVector<int>({258, 258}),
+            "CABAC residual chroma DC resets level contexts per component");
+}
+
+void testReadResidualChromaDcExplicitLastAndAdaptiveLevels()
+{
+    BitReader reader(QByteArray::fromHex("0000000000000000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+    H264CabacContextModelSet contexts(267);
+    contexts.setModel(97, {0, 1});
+    contexts.setModel(149, {0, 1});
+    contexts.setModel(150, {0, 1});
+    contexts.setModel(181, {0, 0});
+    contexts.setModel(182, {0, 1});
+    contexts.setModel(258, {0, 0});
+    contexts.setModel(259, {0, 0});
+
+    const H264CabacResidualChromaDcResult result =
+        h264ReadCabacResidualChromaDcCodedBlockFlagsZero(reader, decoder, contexts, 1, 1);
+    require(result.ok && result.complete, "CABAC residual chroma DC explicit-last complete");
+    require(result.lastSignificantScanIndices == QVector<int>({0, 1, 0, 1}),
+            "CABAC residual chroma DC explicit-last scans for both components");
+    require(result.coeffScanIndices == QVector<int>({1, 0, 1, 0}),
+            "CABAC residual chroma DC reverse scan order");
+    require(result.coeffAbsLevelPrefixFirstCtxIndices == QVector<int>({258, 259, 258, 259}),
+            "CABAC residual chroma DC adaptive first contexts");
+    require(result.coeffAbsLevelMinus1Values == QVector<int>({0, 0, 0, 0}),
+            "CABAC residual chroma DC multiple coefficient magnitudes");
 }
 
 void testAppendCabacP8x8MacroblockSyntaxSkeleton()
@@ -3989,6 +4091,53 @@ void testAppendCabacP8x8MacroblockSyntaxSkeletonWithChromaDcCbfZero()
             "CABAC P_8x8 chroma DC CBF-zero skeleton residual components");
     require(mb.residualCoefficientCount == 0,
             "CABAC P_8x8 chroma DC CBF-zero skeleton coefficient count");
+}
+
+void testAppendCabacP8x8MacroblockSyntaxSkeletonWithChromaDcCoefficients()
+{
+    BitReader reader(QByteArray::fromHex("0000"));
+    SliceInfo slice;
+    PpsInfo pps;
+    SpsInfo sps;
+    initializeBasicSlice(slice, 0, 0);
+    initializeBasicSps(sps);
+    H264SliceDataContext context(reader, slice, pps, sps);
+
+    H264CabacMacroblockSyntaxResult syntax;
+    syntax.ok = true;
+    syntax.complete = true;
+    syntax.parsedSubMacroblockSyntax = true;
+    syntax.parsedCodedBlockPattern = true;
+    syntax.parsedResidual = true;
+    syntax.mbType = 3;
+    syntax.subMbTypes = {0, 0, 0, 0};
+    syntax.refIdxL0 = {0, 0, 0, 0};
+    syntax.mvdL0 = {{0, 0}, {0, 0}, {0, 0}, {0, 0}};
+    syntax.codedBlockPattern = 16;
+    syntax.codedBlockPatternLuma = 0;
+    syntax.codedBlockPatternChroma = 1;
+    syntax.residualChromaDcComponents = {0, 1};
+    syntax.residualChromaDcCodedBlockFlags = {1, 1};
+    syntax.residualChromaDcCoeffComponents = {0, 0, 1};
+    syntax.residualChromaDcCoeffScanIndices = {3, 0, 2};
+    syntax.residualChromaDcCoefficientLevels = {2, -1, 1};
+
+    require(h264AppendCabacMacroblockSyntaxSkeleton(context, syntax),
+            "CABAC P_8x8 chroma DC coefficient skeleton append result");
+    const MacroblockInfo &mb = slice.macroblocks.first();
+    require(mb.residualBlocks.size() == 2,
+            "CABAC P_8x8 chroma DC coefficient residual block count");
+    require(mb.residualBlocks[0].totalCoefficientCount == 2
+                && mb.residualBlocks[1].totalCoefficientCount == 1,
+            "CABAC P_8x8 chroma DC coefficient counts by component");
+    require(mb.residualBlocks[0].coefficients[0].scanIndex == 3
+                && mb.residualBlocks[0].coefficients[0].level == 2,
+            "CABAC P_8x8 chroma DC coefficient scan and level");
+    require(mb.residualBlocks[0].coefficients[1].scanIndex == 0
+                && mb.residualBlocks[0].coefficients[1].level == -1,
+            "CABAC P_8x8 chroma DC second coefficient scan and level");
+    require(mb.residualCoefficientCount == 3,
+            "CABAC P_8x8 chroma DC total coefficient count");
 }
 
 void testAppendCabacP8x8MacroblockSyntaxSkeletonUsesNeighborPrediction()
@@ -4243,6 +4392,10 @@ void testReadResidualLuma4x4CutoffUsesUeg0ZeroCodeword()
     require(!result.complete, "CABAC cutoff UEG0 residual block remains incomplete");
     require(result.coeffAbsLevelPrefixNextBins.size() == 13,
             "CABAC cutoff reads all thirteen additional context-coded prefix bins");
+    require(result.coeffAbsLevelPrefixFirstCtxIndices == QVector<int>{248},
+            "CABAC cutoff first prefix context");
+    require(result.coeffAbsLevelPrefixNextCtxIndices == QVector<int>(13, 252),
+            "CABAC cutoff reuses one state-derived context for every continuation bin");
     require(result.coeffAbsLevelPrefixOneCounts == QVector<int>{14},
             "CABAC cutoff prefix one-count");
     require(result.coeffAbsLevelPrefixTerminatedFlags == QVector<int>{1},
@@ -4313,6 +4466,10 @@ void testReadCabacMacroblockSyntaxPropagatesCutoffUeg0Value()
     require(!result.complete, "CABAC macroblock cutoff UEG0 remains incomplete");
     require(result.residualCoeffAbsLevelPrefixOneCounts == QVector<int>{14},
             "CABAC macroblock cutoff prefix propagation");
+    require(result.residualCoeffAbsLevelPrefixFirstCtxIndices == QVector<int>{248},
+            "CABAC macroblock first prefix context propagation");
+    require(result.residualCoeffAbsLevelPrefixNextCtxIndices == QVector<int>(13, 252),
+            "CABAC macroblock continuation context propagation");
     require(result.residualCoeffAbsLevelSuffixBins == QVector<int>{0},
             "CABAC macroblock UEG0 codeword propagation");
     require(result.residualCoeffAbsLevelMinus1Values == QVector<int>{14},
@@ -4321,6 +4478,99 @@ void testReadCabacMacroblockSyntaxPropagatesCutoffUeg0Value()
             "CABAC macroblock cutoff signed coefficient propagation");
     require(result.residualIncompleteStage == QStringLiteral("residual_coefficients"),
             "CABAC macroblock cutoff propagation stop stage");
+}
+
+void testReadCabacMacroblockSyntaxPropagatesFullCoefficientLoop()
+{
+    BitReader reader(QByteArray::fromHex("0000000000000000000000000000000000000000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+    SliceInfo slice;
+    PpsInfo pps;
+    SpsInfo sps;
+    initializeP8x8LumaResidualSlice(slice, sps);
+    H264SliceDataContext context(reader, slice, pps, sps);
+    H264CabacContextModelSet contexts =
+        initializedP8x8LumaResidualCoeffLevelContextsWithFifthContext(
+            context.currentQp, 1, 0, 0, 0, 0);
+
+    for (int ctxIdx = 134; ctxIdx <= 138; ++ctxIdx) {
+        contexts.setModel(ctxIdx, {0, 1});
+    }
+    for (int ctxIdx = 166; ctxIdx <= 169; ++ctxIdx) {
+        contexts.setModel(ctxIdx, {0, 0});
+    }
+    contexts.setModel(170, {0, 1});
+    contexts.setModel(247, {0, 1});
+    contexts.setModel(248, {0, 1});
+    for (int ctxIdx = 252; ctxIdx <= 256; ++ctxIdx) {
+        contexts.setModel(ctxIdx, {0, 0});
+    }
+
+    const H264CabacMacroblockSyntaxResult result =
+        h264ReadCabacMacroblockSyntax(context, decoder, contexts);
+
+    require(result.ok, "CABAC macroblock full coefficient loop propagation result");
+    require(result.residualCoeffReverseScanIndices == QVector<int>({4, 3, 2, 1, 0}),
+            "CABAC macroblock full reverse-scan order propagation");
+    require(result.residualCoeffAbsLevelMinus1Values == QVector<int>(5, 1),
+            "CABAC macroblock full coefficient value propagation");
+    require(result.residualCoeffAbsLevelPrefixNextCtxIndices
+                == QVector<int>({252, 253, 254, 255, 256}),
+            "CABAC macroblock saturated continuation context propagation");
+    require(result.residualCoeffSignFlags.size() == 5,
+            "CABAC macroblock full coefficient sign propagation");
+}
+
+void testAppendCabacP8x8MacroblockSyntaxWithNonZeroResidualBlock()
+{
+    BitReader reader(QByteArray::fromHex("0000"));
+    SliceInfo slice;
+    PpsInfo pps;
+    SpsInfo sps;
+    initializeP8x8LumaResidualSlice(slice, sps);
+    H264SliceDataContext context(reader, slice, pps, sps);
+
+    H264CabacMacroblockSyntaxResult syntax;
+    syntax.ok = true;
+    syntax.complete = true;
+    syntax.parsedSubMacroblockSyntax = true;
+    syntax.parsedCodedBlockPattern = true;
+    syntax.parsedResidual = true;
+    syntax.mbType = 3;
+    syntax.subMbTypes = {0, 0, 0, 0};
+    syntax.refIdxL0 = {0, 0, 0, 0};
+    syntax.mvdL0 = {{0, 0}, {0, 0}, {0, 0}, {0, 0}};
+    syntax.codedBlockPattern = 8;
+    syntax.codedBlockPatternLuma = 8;
+    syntax.codedBlockPatternChroma = 0;
+    syntax.residualLuma4x4BlockIndices = {12, 13, 14, 15};
+    syntax.residualCodedBlockFlags = {1, 0, 0, 0};
+    syntax.residualCoeffAbsLevelBlockIndices = {12, 12};
+    syntax.residualCoeffAbsLevelScanIndices = {5, 1};
+    syntax.residualCoefficientLevels = {-3, 1};
+
+    require(h264AppendCabacMacroblockSyntaxSkeleton(context, syntax),
+            "CABAC non-zero residual macroblock append result");
+    require(slice.macroblocks.size() == 1,
+            "CABAC non-zero residual macroblock append count");
+    const MacroblockInfo &mb = slice.macroblocks.first();
+    require(mb.residualParsed && mb.parsed,
+            "CABAC non-zero residual macroblock parsed flags");
+    require(mb.residualBlocks.size() == 4 && mb.residualBlockCount == 4,
+            "CABAC non-zero residual block model count");
+    require(mb.residualCoefficientCount == 2,
+            "CABAC non-zero residual macroblock coefficient count");
+    require(mb.residualBlocks[0].blockIndex == 12
+                && mb.residualBlocks[0].totalCoefficientCount == 2,
+            "CABAC non-zero residual first block summary");
+    require(mb.residualBlocks[0].coefficients[0].scanIndex == 5
+                && mb.residualBlocks[0].coefficients[0].level == -3
+                && mb.residualBlocks[0].coefficients[1].scanIndex == 1
+                && mb.residualBlocks[0].coefficients[1].level == 1,
+            "CABAC non-zero residual coefficient model values");
+    require(context.coeffStates[0].luma[12] == 2
+                && context.coeffStates[0].luma[13] == 0,
+            "CABAC non-zero residual neighbor coefficient state");
 }
 }
 
@@ -4359,16 +4609,7 @@ int main()
     testReadCabacMacroblockSyntaxP8x8SingleLumaResidualCbfZero();
     testReadCabacMacroblockSyntaxP8x8MultiLumaResidualCbfZero();
     testReadCabacMacroblockSyntaxP8x8ChromaDcResidualCbfZero();
-    testReadCabacMacroblockSyntaxP8x8ChromaDcResidualCbfNonZeroIncomplete();
-    testReadCabacMacroblockSyntaxP8x8ResidualCbfNonZeroIncomplete();
-    testReadCabacMacroblockSyntaxP8x8ResidualSignificantOneIncomplete();
-    testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelNextBinPartial();
-    testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelThirdBinZeroPartial();
-    testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelThirdBinOnePartial();
-    testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelFourthBinZeroPartial();
-    testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelFourthBinOnePartial();
-    testReadCabacMacroblockSyntaxPropagatesCoefficientValue();
-    testReadCabacMacroblockSyntaxPropagatesCutoffUeg0Value();
+    testReadCabacMacroblockSyntaxP8x8ChromaDcResidualCbfNonZero();
     testReadCabacMacroblockSyntaxP8x8SmallNonZeroMvd();
     testReadCabacMacroblockSyntaxP8x8NonZeroMvdIncomplete();
     testReadCodedBlockPatternZeroMonochrome();
@@ -4379,33 +4620,21 @@ int main()
     testReadMbQpDeltaNonZeroIncomplete();
     testReadResidualCodedBlockFlagZeroLuma4x4();
     testReadResidualCodedBlockFlagNonZeroIncomplete();
-    testReadResidualLuma4x4CodedBlockFlagNonZeroPartial();
     testReadResidualLuma4x4SignificantCoeffFlagMissingLaterContext();
     testReadResidualLuma4x4InferredFinalCoeffLevelMissingContext();
-    testReadResidualLuma4x4SignificantCoeffFlagOneIncomplete();
-    testReadResidualLuma4x4MultipleSignificantReverseScanOrder();
-    testReadResidualLuma4x4CoeffAbsLevelNextBinZeroIncomplete();
-    testReadResidualLuma4x4CoeffAbsLevelNextBinOneIncomplete();
-    testReadResidualLuma4x4CoeffAbsLevelThirdBinMissingKeepsBoundary();
-    testReadResidualLuma4x4CoeffAbsLevelThirdBinZeroIncomplete();
-    testReadResidualLuma4x4CoeffAbsLevelThirdBinOneIncomplete();
-    testReadResidualLuma4x4CoeffAbsLevelFourthBinZeroIncomplete();
-    testReadResidualLuma4x4CoeffAbsLevelFourthBinOneIncomplete();
-    testReadResidualLuma4x4CoeffAbsLevelFourthBinDecodeFailure();
-    testReadResidualLuma4x4TerminatedPrefixProducesCoefficientValue();
-    testReadResidualLuma4x4SixthBinZeroProducesCoefficientValue();
-    testReadResidualLuma4x4CutoffUsesUeg0ZeroCodeword();
     testReadResidualLuma4x4CoeffAbsLevelNextBinMissingContext();
-    testReadResidualLuma4x4LastSignificantZeroIncomplete();
     testReadResidualLuma4x4CodedBlockFlagsZeroSingleLuma8x8();
     testReadResidualLuma4x4CodedBlockFlagsZeroAllLuma8x8();
     testReadResidualChromaDcCodedBlockFlagsZero();
     testReadResidualChromaDcCodedBlockFlagsZeroWithChromaAcPresent();
-    testReadResidualChromaDcCodedBlockFlagNonZeroPartial();
+    testReadResidualChromaDcCodedBlockFlagNonZeroInferredFinal();
+    testReadResidualChromaDcExplicitLastAndAdaptiveLevels();
     testAppendCabacP8x8MacroblockSyntaxSkeleton();
     testAppendCabacP8x8MacroblockSyntaxSkeletonWithResidualCbfZero();
     testAppendCabacP8x8MacroblockSyntaxSkeletonWithMultiResidualCbfZero();
     testAppendCabacP8x8MacroblockSyntaxSkeletonWithChromaDcCbfZero();
+    testAppendCabacP8x8MacroblockSyntaxSkeletonWithChromaDcCoefficients();
+    testAppendCabacP8x8MacroblockSyntaxWithNonZeroResidualBlock();
     testAppendCabacP8x8MacroblockSyntaxSkeletonUsesNeighborPrediction();
     testAppendCabacP8x8MacroblockSyntaxSkeletonAppliesMvd();
     testReadISliceMbTypePrefix();
