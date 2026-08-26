@@ -66,6 +66,16 @@ void testAnnexBAndBigEndianHelpers()
     const unsigned char lengthBytes[] = {0x00, 0x01, 0x02, 0x03};
     require(readBigEndianLength(lengthBytes, 4) == 0x00010203, "4-byte big-endian length");
     require(readBigEndianLength(lengthBytes + 1, 2) == 0x0102, "2-byte big-endian length");
+
+    QByteArray ambiguousAvcc = QByteArray::fromHex("00000100");
+    ambiguousAvcc.append(char(0x41));
+    ambiguousAvcc.append(QByteArray(255, char(0x55)));
+    require(!hasAnnexBStartCode(ambiguousAvcc),
+            "complete AVCC packet is not mistaken for a 3-byte Annex B prefix");
+
+    const QByteArray incompleteAvcc = QByteArray::fromHex("000001004155");
+    require(hasAnnexBStartCode(incompleteAvcc),
+            "incomplete length prefix does not hide a real Annex B signature");
 }
 
 void testRbspConversionAndPacketRanges()

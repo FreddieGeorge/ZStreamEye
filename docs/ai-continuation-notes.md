@@ -54,6 +54,11 @@ Core architecture:
 - HEVC has a shallow parser skeleton for NALU/VPS/SPS/PPS/VCL classification
   and graceful unsupported diagnostics. It does not parse full HEVC slice
   headers yet.
+- `tests/corpus` contains a deterministic synthetic real-stream regression
+  corpus: Baseline/CAVLC Annex B, Main/CABAC MP4 with B-frames, and
+  High/CABAC Matroska with B-frames plus AAC. The corpus is generated from
+  FFmpeg filters, carries a hash-locked manifest, and is exercised end to end
+  through `FFmpegDecoder` by `ZStreamEyeRealStreamCorpusTests`.
 
 H.264 is the deepest parser and is intentionally a direct bitstream parser, not
 a wrapper around FFmpeg's H.264 parser.
@@ -310,6 +315,21 @@ Current H.264 limitations:
   unsupported or diagnostic-only paths.
 
 ## Build And Verification
+
+The automated suite includes both small syntax-focused fixtures under
+`tests/fixtures` and real container/decode integration cases under
+`tests/corpus`. Regenerate the real-stream corpus only when intentionally
+changing its generation contract:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\generate-regression-corpus.ps1
+```
+
+Both CABAC container cases decode and analyze all 12 video frames. The corpus
+also locks the framing regression where a four-byte AVCC length such as
+`00 00 01 ef` must not be mistaken for a three-byte Annex B start code. For
+B-frame streams, decoded frames are paired with pending packet analyses by PTS
+instead of decode-order FIFO, with FIFO retained as the no-timestamp fallback.
 
 For normal Codex/parser work, use the existing utility build:
 

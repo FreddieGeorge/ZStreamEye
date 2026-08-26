@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "description": "Synthetic real-stream regression corpus generated with FFmpeg filters and libx264.",
+  "cases": [
+    {
+      "file": "h264_cavlc_baseline_annexb.h264",
+      "sha256": "4ecd35bba13ad57bb01f56bb769d5488c9366790dcc66d68ea723d4009afc5fb",
+      "container": "annexb",
+      "profile": "constrained_baseline",
+      "entropy_coding": "cavlc",
+      "width": 96,
+      "height": 64,
+      "decoded_frames": 12,
+      "minimum_analyzed_frames": 12,
+      "stream_count": 1,
+      "audio_stream_count": 0,
+      "has_b_frames": false
+    },
+    {
+      "file": "h264_cabac_main_bframes.mp4",
+      "sha256": "ec710551a49a80e236f7e213dc98ef44e57869e48fac313812ba4c95275d6d5e",
+      "container": "mp4",
+      "profile": "main",
+      "entropy_coding": "cabac",
+      "width": 96,
+      "height": 64,
+      "decoded_frames": 12,
+      "minimum_analyzed_frames": 12,
+      "stream_count": 1,
+      "audio_stream_count": 0,
+      "has_b_frames": true
+    },
+    {
+      "file": "h264_cabac_high_aac.mkv",
+      "sha256": "000be582e5f2320331b3c6635fab430ef5abae3359df07b24596017b5b3b552a",
+      "container": "matroska",
+      "profile": "high",
+      "entropy_coding": "cabac",
+      "width": 96,
+      "height": 64,
+      "decoded_frames": 12,
+      "minimum_analyzed_frames": 12,
+      "stream_count": 2,
+      "audio_stream_count": 1,
+      "has_b_frames": true
+    }
+  ]
+}

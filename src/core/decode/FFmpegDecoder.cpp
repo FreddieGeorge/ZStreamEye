@@ -189,7 +189,16 @@ AVFrame *FFmpegDecoder::decodeNextFrame()
         int ret = avcodec_receive_frame(m_codecContext, m_frame);
         if (ret == 0) {
             if (!m_pendingFrames.isEmpty()) {
-                const PendingFrameInfo info = m_pendingFrames.takeFirst();
+                int pendingIndex = 0;
+                if (m_frame->best_effort_timestamp != AV_NOPTS_VALUE) {
+                    for (int i = 0; i < m_pendingFrames.size(); ++i) {
+                        if (m_pendingFrames.at(i).analysis.pts == m_frame->best_effort_timestamp) {
+                            pendingIndex = i;
+                            break;
+                        }
+                    }
+                }
+                const PendingFrameInfo info = m_pendingFrames.takeAt(pendingIndex);
                 m_lastFrameAnalysis = info.analysis;
                 m_lastFrameSeekCheckpoint = info.checkpoint;
             } else {

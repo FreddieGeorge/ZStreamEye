@@ -31,3 +31,8 @@ add_zstreameye_core_test(ZStreamEyeParserFactoryTests test_parser_factory.cpp)
 add_zstreameye_core_test(ZStreamEyePacketRawDataBuilderTests test_packet_raw_data_builder.cpp)
 add_zstreameye_core_test(ZStreamEyeDecodeHelperTests test_decode_helpers.cpp)
 add_zstreameye_app_helper_test(ZStreamEyeAnalysisStoreTests test_analysis_store.cpp)
+
+add_zstreameye_core_test(ZStreamEyeRealStreamCorpusTests test_real_stream_corpus.cpp)
+target_compile_definitions(ZStreamEyeRealStreamCorpusTests PRIVATE
+    ZSTREAMEYE_TEST_CORPUS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/corpus"
+)

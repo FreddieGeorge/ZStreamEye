@@ -3,6 +3,9 @@
 These tiny text fixtures store H.264 packets as hexadecimal bytes so they remain
 reviewable in source control.
 
+Full media files used for container, packet, parser, and decoder integration
+coverage live in the sibling `tests/corpus` directory.
+
 They are intentionally minimal parser fixtures, not visual-quality video clips:
 
 - `annexb_sps_pps_idr_i.hex`: Annex B SPS/PPS/IDR I-slice with one 16x16 macroblock.
