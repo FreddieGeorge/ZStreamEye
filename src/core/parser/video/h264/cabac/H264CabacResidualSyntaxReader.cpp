@@ -12,8 +12,8 @@ constexpr int Luma4x4CoeffAbsLevelMinus1NextCtxIdx = 252;
 constexpr int Luma4x4CoeffAbsLevelMinus1ThirdCtxIdx = 253;
 constexpr int Luma4x4CoeffAbsLevelMinus1FourthCtxIdx = 254;
 constexpr int Luma4x4CoeffAbsLevelMinus1FifthCtxIdx = 255;
-constexpr int Luma4x4CoeffAbsLevelMinus1DirectSignMaxOneCount = 3;
 constexpr int CoeffAbsLevelMinus1Ueg0Cutoff = 14;
+constexpr int CoeffAbsLevelMinus1Ueg0MaxPrefixOneCount = 29;
 
 struct Luma4x4CoeffAbsLevelPrefixContext
 {
@@ -28,13 +28,14 @@ constexpr Luma4x4CoeffAbsLevelPrefixContext Luma4x4CoeffAbsLevelAdditionalPrefix
     {Luma4x4CoeffAbsLevelMinus1FourthCtxIdx, "fourth", false},
     {Luma4x4CoeffAbsLevelMinus1FifthCtxIdx, "fifth", false},
     {Luma4x4CoeffAbsLevelMinus1FifthCtxIdx, "sixth", false},
-};
-
-constexpr const char *Luma4x4CoeffAbsLevelSuffixBinNames[] = {
-    "first",
-    "second",
-    "third",
-    "fourth",
+    {Luma4x4CoeffAbsLevelMinus1FifthCtxIdx, "seventh", false},
+    {Luma4x4CoeffAbsLevelMinus1FifthCtxIdx, "eighth", false},
+    {Luma4x4CoeffAbsLevelMinus1FifthCtxIdx, "ninth", false},
+    {Luma4x4CoeffAbsLevelMinus1FifthCtxIdx, "tenth", false},
+    {Luma4x4CoeffAbsLevelMinus1FifthCtxIdx, "eleventh", false},
+    {Luma4x4CoeffAbsLevelMinus1FifthCtxIdx, "twelfth", false},
+    {Luma4x4CoeffAbsLevelMinus1FifthCtxIdx, "thirteenth", false},
+    {Luma4x4CoeffAbsLevelMinus1FifthCtxIdx, "fourteenth", false},
 };
 
 int codedBlockFlagCtxIdx(H264CabacResidualBlockCategory category)
@@ -109,6 +110,7 @@ bool readLuma4x4CoeffSignFlagSkeleton(BitReader &reader,
                                        H264CabacDecoder &decoder,
                                        int blockIndex,
                                        int scanIndex,
+                                       int coeffAbsLevelMinus1,
                                        H264CabacResidualLuma4x4Result &result)
 {
     int sign = 0;
@@ -122,11 +124,46 @@ bool readLuma4x4CoeffSignFlagSkeleton(BitReader &reader,
     }
 
     result.coeffSignFlags.append(sign);
+    result.coeffAbsLevelMinus1Values.append(coeffAbsLevelMinus1);
+    const int magnitude = coeffAbsLevelMinus1 + 1;
+    result.coefficientLevels.append(sign != 0 ? -magnitude : magnitude);
     result.incompleteStage = QStringLiteral("residual_coefficients");
     result.diagnosticMessage =
-        QStringLiteral("CABAC luma4x4 coeff_sign_flag[%1][%2] was decoded; completing non-zero residual coefficients is not implemented.")
+        QStringLiteral("CABAC luma4x4 coeff_sign_flag[%1][%2] was decoded and coefficient level %3 was reconstructed; completing the residual block is not implemented.")
             .arg(blockIndex)
-            .arg(scanIndex);
+            .arg(scanIndex)
+            .arg(result.coefficientLevels.last());
+    return true;
+}
+
+bool readCoeffAbsLevelMinus1Ueg0Value(const QVector<int> &bins, int *value)
+{
+    if (bins.isEmpty()) {
+        return false;
+    }
+
+    int prefixOneCount = 0;
+    while (prefixOneCount < bins.size() && bins.at(prefixOneCount) == 1) {
+        ++prefixOneCount;
+    }
+    if (prefixOneCount >= bins.size() || bins.at(prefixOneCount) != 0
+        || prefixOneCount > CoeffAbsLevelMinus1Ueg0MaxPrefixOneCount
+        || bins.size() != prefixOneCount * 2 + 1) {
+        return false;
+    }
+
+    int suffixValue = 0;
+    for (int i = prefixOneCount + 1; i < bins.size(); ++i) {
+        const int bin = bins.at(i);
+        if (bin != 0 && bin != 1) {
+            return false;
+        }
+        suffixValue = (suffixValue << 1) | bin;
+    }
+
+    if (value != nullptr) {
+        *value = ((1 << prefixOneCount) - 1) + suffixValue;
+    }
     return true;
 }
 
@@ -161,98 +198,92 @@ bool readLuma4x4CoeffAbsLevelMinus1SuffixBypassBinSkeleton(BitReader &reader,
     return true;
 }
 
-bool isLuma4x4CoeffAbsLevelMinus1FixedReadyInput(int prefixOneCount,
-                                                 const QVector<int> &suffixBins)
+bool readLuma4x4CoeffAbsLevelMinus1Ueg0Skeleton(
+    BitReader &reader,
+    H264CabacDecoder &decoder,
+    int blockIndex,
+    int scanIndex,
+    int prefixOneCount,
+    H264CabacResidualLuma4x4Result &result)
 {
-    if (prefixOneCount != 4 || suffixBins.size() != 4) {
-        return false;
-    }
-
-    for (int suffixBin : suffixBins) {
-        if (suffixBin != 0) {
-            return false;
-        }
-    }
-    return true;
-}
-
-bool readLuma4x4CoeffAbsLevelMinus1RemainingSkeleton(BitReader &reader,
-                                                     H264CabacDecoder &decoder,
-                                                     int blockIndex,
-                                                     int scanIndex,
-                                                     int prefixOneCount,
-                                                     H264CabacResidualLuma4x4Result &result)
-{
-    const char *lastSuffixBinName = "";
-    int suffixBinCount = 0;
-    QVector<int> suffixBinsForCoeff;
-    QVector<int> remainingInputBinsForCoeff;
-    for (const char *suffixBinName : Luma4x4CoeffAbsLevelSuffixBinNames) {
-        lastSuffixBinName = suffixBinName;
+    QVector<int> ueg0Bins;
+    int ueg0PrefixOneCount = 0;
+    while (true) {
         if (!readLuma4x4CoeffAbsLevelMinus1SuffixBypassBinSkeleton(
                 reader,
                 decoder,
                 blockIndex,
                 scanIndex,
-                QString::fromLatin1(suffixBinName),
+                QStringLiteral("UEG0 prefix"),
                 result.coeffAbsLevelSuffixBins,
                 result)) {
             return false;
         }
-        suffixBinsForCoeff.append(result.coeffAbsLevelSuffixBins.last());
-        remainingInputBinsForCoeff.append(result.coeffAbsLevelSuffixBins.last());
-        result.coeffAbsLevelRemainingInputBins.append(result.coeffAbsLevelSuffixBins.last());
-        ++suffixBinCount;
+
+        const int bin = result.coeffAbsLevelSuffixBins.last();
+        ueg0Bins.append(bin);
+        result.coeffAbsLevelRemainingInputBins.append(bin);
+        if (bin == 0) {
+            break;
+        }
+        ++ueg0PrefixOneCount;
+        if (ueg0PrefixOneCount > CoeffAbsLevelMinus1Ueg0MaxPrefixOneCount) {
+            result.incompleteStage = QStringLiteral("coeff_abs_level_minus1");
+            result.diagnosticCode = QStringLiteral("cabac_residual_incomplete");
+            result.diagnosticMessage =
+                QStringLiteral("CABAC luma4x4 coeff_abs_level_minus1[%1][%2] UEG0 prefix exceeds the supported safety limit.")
+                    .arg(blockIndex)
+                    .arg(scanIndex);
+            return true;
+        }
     }
 
-    result.coeffAbsLevelSuffixBinCounts.append(suffixBinCount);
-    result.coeffAbsLevelRemainingInputBinCounts.append(suffixBinCount);
-    if (!result.coeffAbsLevelReadyForValueFlags.isEmpty()) {
-        result.coeffAbsLevelReadyForValueFlags.last() = 1;
+    for (int i = 0; i < ueg0PrefixOneCount; ++i) {
+        if (!readLuma4x4CoeffAbsLevelMinus1SuffixBypassBinSkeleton(
+                reader,
+                decoder,
+                blockIndex,
+                scanIndex,
+                QStringLiteral("UEG0 information"),
+                result.coeffAbsLevelSuffixBins,
+                result)) {
+            return false;
+        }
+        const int bin = result.coeffAbsLevelSuffixBins.last();
+        ueg0Bins.append(bin);
+        result.coeffAbsLevelRemainingInputBins.append(bin);
     }
+
+    const H264CabacCoeffAbsLevelRemainingInput input{prefixOneCount, ueg0Bins};
+    int coeffAbsLevelMinus1 = 0;
+    if (!h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix(input, &coeffAbsLevelMinus1)) {
+        result.diagnosticCode = QStringLiteral("cabac_residual_invalid");
+        result.diagnosticMessage =
+            QStringLiteral("CABAC luma4x4 coeff_abs_level_minus1[%1][%2] has an invalid UEG0 suffix.")
+                .arg(blockIndex)
+                .arg(scanIndex);
+        return false;
+    }
+
+    result.coeffAbsLevelSuffixBinCounts.append(ueg0Bins.size());
+    result.coeffAbsLevelRemainingInputBinCounts.append(ueg0Bins.size());
+    result.coeffAbsLevelReadyForValueFlags.last() = 1;
     result.coeffAbsLevelReadyPrefixOneCounts.append(prefixOneCount);
-    result.coeffAbsLevelReadySuffixBins.append(suffixBinsForCoeff);
-    result.coeffAbsLevelReadyRemainingInputBins.append(remainingInputBinsForCoeff);
-    const bool fixedInputRecognized =
-        isLuma4x4CoeffAbsLevelMinus1FixedReadyInput(prefixOneCount, suffixBinsForCoeff);
-    const H264CabacCoeffAbsLevelRemainingInput remainingInput{
-        prefixOneCount,
-        remainingInputBinsForCoeff,
-    };
-    const bool needsAdditionalPreUeg0Parsing =
-        h264CabacCoeffAbsLevelMinus1NeedsAdditionalPreUeg0Parsing(remainingInput);
-    const int additionalPreUeg0ParsingTargetPrefixOneCount =
-        h264CabacCoeffAbsLevelMinus1AdditionalPreUeg0ParsingTargetPrefixOneCount(remainingInput);
-    const int additionalPreUeg0ParsingRemainingPrefixBins =
-        h264CabacCoeffAbsLevelMinus1AdditionalPreUeg0ParsingRemainingPrefixBins(remainingInput);
-    const bool canContinuePreUeg0PrefixParsing =
-        h264CabacCoeffAbsLevelMinus1CanContinuePreUeg0PrefixParsing(remainingInput);
-    result.coeffAbsLevelReadyNeedsAdditionalPreUeg0ParsingFlags.append(
-        needsAdditionalPreUeg0Parsing ? 1 : 0);
-    if (additionalPreUeg0ParsingTargetPrefixOneCount >= 0) {
-        result.coeffAbsLevelReadyAdditionalPreUeg0ParsingTargetPrefixOneCounts.append(
-            additionalPreUeg0ParsingTargetPrefixOneCount);
-    }
-    if (additionalPreUeg0ParsingRemainingPrefixBins >= 0) {
-        result.coeffAbsLevelReadyAdditionalPreUeg0ParsingRemainingPrefixBinCounts.append(
-            additionalPreUeg0ParsingRemainingPrefixBins);
-    }
-    result.coeffAbsLevelReadyCanContinuePreUeg0PrefixParsingFlags.append(
-        canContinuePreUeg0PrefixParsing ? 1 : 0);
+    result.coeffAbsLevelReadySuffixBins.append(ueg0Bins);
+    result.coeffAbsLevelReadyRemainingInputBins.append(ueg0Bins);
+    result.coeffAbsLevelReadyNeedsAdditionalPreUeg0ParsingFlags.append(0);
+    result.coeffAbsLevelReadyCanContinuePreUeg0PrefixParsingFlags.append(0);
     result.coeffAbsLevelValueInputCompleteFlags.append(1);
-    result.coeffAbsLevelFixedInputRecognizedFlags.append(fixedInputRecognized ? 1 : 0);
-    result.coeffAbsLevelPreUeg0RemainingInputFlags.append(
-        fixedInputRecognized && h264CabacCoeffAbsLevelMinus1HasPreUeg0RemainingInput(remainingInput) ? 1 : 0);
-    result.coeffAbsLevelNeedsAdditionalPreUeg0ParsingFlags.append(
-        needsAdditionalPreUeg0Parsing ? 1 : 0);
-    result.incompleteStage = QStringLiteral("coeff_abs_level_minus1");
-    result.diagnosticMessage =
-        QStringLiteral("CABAC luma4x4 coeff_abs_level_minus1[%1][%2] %3 suffix bypass bin was decoded after prefix one-count %4; computing coeff_abs_level_minus1 is not implemented.")
-            .arg(blockIndex)
-            .arg(scanIndex)
-            .arg(QString::fromLatin1(lastSuffixBinName))
-            .arg(prefixOneCount);
-    return true;
+    result.coeffAbsLevelFixedInputRecognizedFlags.append(0);
+    result.coeffAbsLevelPreUeg0RemainingInputFlags.append(0);
+    result.coeffAbsLevelNeedsAdditionalPreUeg0ParsingFlags.append(0);
+    return readLuma4x4CoeffSignFlagSkeleton(
+        reader,
+        decoder,
+        blockIndex,
+        scanIndex,
+        coeffAbsLevelMinus1,
+        result);
 }
 
 bool readLuma4x4CoeffAbsLevelMinus1PrefixBinSkeleton(BitReader &reader,
@@ -320,7 +351,13 @@ bool readLuma4x4CoeffAbsLevelMinus1FirstBinSkeleton(BitReader &reader,
     result.diagnosticCode = QStringLiteral("cabac_residual_incomplete");
     if (bin == 0) {
         appendLuma4x4CoeffAbsLevelPrefixState(result, true, 0);
-        return readLuma4x4CoeffSignFlagSkeleton(reader, decoder, blockIndex, scanIndex, result);
+        return readLuma4x4CoeffSignFlagSkeleton(
+            reader,
+            decoder,
+            blockIndex,
+            scanIndex,
+            0,
+            result);
     }
 
     int prefixOneCount = 1;
@@ -347,18 +384,25 @@ bool readLuma4x4CoeffAbsLevelMinus1FirstBinSkeleton(BitReader &reader,
         result.coeffAbsLevelPrefixNextBins.append(prefixBin);
         if (prefixBin == 0) {
             appendLuma4x4CoeffAbsLevelPrefixState(result, true, prefixOneCount);
-            if (prefixOneCount > Luma4x4CoeffAbsLevelMinus1DirectSignMaxOneCount) {
-                return readLuma4x4CoeffAbsLevelMinus1RemainingSkeleton(
-                    reader,
-                    decoder,
-                    blockIndex,
-                    scanIndex,
-                    prefixOneCount,
-                    result);
-            }
-            return readLuma4x4CoeffSignFlagSkeleton(reader, decoder, blockIndex, scanIndex, result);
+            return readLuma4x4CoeffSignFlagSkeleton(
+                reader,
+                decoder,
+                blockIndex,
+                scanIndex,
+                prefixOneCount,
+                result);
         }
         ++prefixOneCount;
+        if (prefixOneCount == CoeffAbsLevelMinus1Ueg0Cutoff) {
+            appendLuma4x4CoeffAbsLevelPrefixState(result, true, prefixOneCount);
+            return readLuma4x4CoeffAbsLevelMinus1Ueg0Skeleton(
+                reader,
+                decoder,
+                blockIndex,
+                scanIndex,
+                prefixOneCount,
+                result);
+        }
     }
 
     appendLuma4x4CoeffAbsLevelPrefixState(result, false, prefixOneCount);
@@ -524,7 +568,7 @@ bool h264CabacCoeffAbsLevelMinus1CanComputeFromUeg0Suffix(
     const H264CabacCoeffAbsLevelRemainingInput &input)
 {
     return h264CabacCoeffAbsLevelMinus1UsesUeg0Suffix(input.prefixOneCount)
-        && (input.bins == QVector<int>{0} || input.bins.size() == 4);
+        && readCoeffAbsLevelMinus1Ueg0Value(input.bins, nullptr);
 }
 
 bool h264CabacCoeffAbsLevelMinus1ReadUeg0SuffixValue(
@@ -535,16 +579,7 @@ bool h264CabacCoeffAbsLevelMinus1ReadUeg0SuffixValue(
         return false;
     }
 
-    int value = 0;
-    for (int bin : input.bins) {
-        if (bin != 0 && bin != 1) {
-            return false;
-        }
-        value = (value << 1) | bin;
-    }
-
-    *suffixValue = value;
-    return true;
+    return readCoeffAbsLevelMinus1Ueg0Value(input.bins, suffixValue);
 }
 
 bool h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix(

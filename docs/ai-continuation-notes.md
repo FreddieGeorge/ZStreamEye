@@ -87,12 +87,12 @@ Important H.264 files:
 - `H264MacroblockTypes.*`: macroblock type naming and coded-block-pattern
   mapping.
 - `cabac/H264CabacContextModel.*`: CABAC context-model initialization
-  tables/helpers. The covered subset currently reaches ctxIdx 252, including
+  tables/helpers. The covered subset currently reaches ctxIdx 255, including
   the coded-block-pattern, `mb_qp_delta`, luma4x4/chroma DC
   coded-block-flag contexts, and the luma4x4
   `significant_coeff_flag` ctxIdx 134-148 and
   `last_significant_coeff_flag` ctxIdx 166-180 contexts plus the
-  first through sixth luma4x4 `coeff_abs_level_minus1` prefix bins used
+  first through fourteenth luma4x4 `coeff_abs_level_minus1` prefix bins used
   by the narrow CABAC paths and near-term residual work.
 - `cabac/H264CabacDecoder.*`: CABAC arithmetic-decoder foundation.
 - `cabac/H264CabacSyntaxTypes.h`: shared result structs for CABAC syntax
@@ -122,134 +122,74 @@ Important H.264 files:
   if the last flag is one reads the first
   `coeff_abs_level_minus1` prefix bin with ctxIdx 248. If that first prefix
   bin is one, it reads one additional prefix bin with ctxIdx 252, third and
-  fourth prefix bins with ctxIdx 253-254, plus fifth and sixth prefix bins that
-  reuse ctxIdx 255. If any
-  covered prefix step reaches a zero terminal bin, it reads one bypass
-  `coeff_sign_flag` and then stops at `residual_coefficients`; if the covered
-  prefix bins do not terminate, the next unsupported stage remains the rest of
-  `coeff_abs_level_minus1`. If no last significant
+  fourth prefix bins with ctxIdx 253-254, plus fifth through fourteenth prefix
+  bins that reuse ctxIdx 255. If any
+  covered prefix step before the cutoff reaches a zero terminal bin, it reads
+  one bypass `coeff_sign_flag` and then stops at `residual_coefficients`. If all
+  fourteen context-coded bins are one, it decodes the following bypass UEG0
+  codeword before the sign flag. If no last significant
   coefficient is found in the 15 explicit bins, the reader treats scan position
   15 as the inferred final coefficient and reads the same narrow
   `coeff_abs_level_minus1` prefix skeleton before stopping. Coefficient-level
   partial results now carry reverse-scan coefficient order plus an explicit
   inferred-final flag, so consumers do not need to infer that state from scan
   index 15. They also carry whether the covered
-  `coeff_abs_level_minus1` prefix terminated and the number of one bins seen in
-  the prefix, which keeps the current partial result useful without starting
-  suffix parsing yet; the tests now lock those suffix-preparation inputs to the
-  coefficient scan index for a terminated fifth-bin prefix. A terminated prefix
-  with more than three one bins now stops before `coeff_sign_flag` at
-  `coeff_abs_level_minus1`, preserving the boundary for future suffix/remaining
-  level parsing. That stop is routed through a remaining-level skeleton that
-  receives the parsed prefix one-count, reads and records the first four suffix
-  bypass bins, and then still returns incomplete without computing
-  `coeff_abs_level_minus1`; macroblock-level partial results propagate those
-  suffix bins and per-coefficient suffix-bin counts alongside the prefix state.
-  Once that remaining-level skeleton has all four currently covered suffix
-  bypass bins for a coefficient, it marks the per-coefficient
-  `coeffAbsLevelReadyForValueFlags` entry as ready; this is only value-compute
-  preparation and still does not calculate a real `coeff_abs_level_minus1`.
-  Ready entries also snapshot the prefix one-count in
-  `coeffAbsLevelReadyPrefixOneCounts`, so later value computation does not have
-  to reconstruct that input from the prefix-bin arrays. The same ready entries
-  snapshot the currently covered suffix bins as grouped
-  `coeffAbsLevelReadySuffixBins`, while the flat suffix-bin stream remains
-  available for diagnostics and compatibility. They also set
-  `coeffAbsLevelValueInputCompleteFlags` to mark that the current narrow-path
-  value inputs are complete; this still does not mean
-  `coeff_abs_level_minus1` has been computed. The fixed ready input currently
-  covered by tests (`prefixOneCount == 4` and four zero suffix bins) is marked
-  with `coeffAbsLevelFixedInputRecognizedFlags`; it is only an input-shape
-  recognition flag, not a decoded coefficient level.
-  A pure `h264CabacCoeffAbsLevelMinus1UsesUeg0Suffix()` helper now locks the
-  UEG0 `uCoff == 14` cutoff; the currently covered `prefixOneCount == 4`
-  remaining-level skeleton input is intentionally below that cutoff, so the
-  existing recorded bypass bins have not been reclassified or used to compute a
-  value. The next step should first tighten the naming/flag semantics for this
-  pre-UEG0 remaining-level input before introducing any real
-  `coeff_abs_level_minus1` value helper.
-  That tightening has started with
-  `coeffAbsLevelPreUeg0RemainingInputFlags`, which marks the currently covered
-  fixed input as pre-UEG0 remaining-level input while preserving the older flat
-  and grouped suffix-bin diagnostic fields for compatibility. The flag now uses
-  the pure `h264CabacCoeffAbsLevelMinus1IsPreUeg0RemainingInput()` helper, which
-  is true for non-negative prefix one-counts below the UEG0 cutoff and false at
-  or above `uCoff == 14`. Do not rename the older suffix-bin fields in the next
-  step; treat them as compatibility/diagnostic bypass-bin recordings until a
-  separate remaining-input bin field can be introduced without churn. Parallel
-  `coeffAbsLevelRemainingInputBins`, per-coefficient remaining-input counts, and
-  grouped ready remaining-input bins now carry that more accurate pre-UEG0
-  meaning while preserving the older suffix-bin fields. A pure
-  `H264CabacCoeffAbsLevelRemainingInput` helper input plus
-  `h264CabacCoeffAbsLevelMinus1HasPreUeg0RemainingInput()` now lock the
-  pre-UEG0 remaining-input shape, and the reader uses that helper when setting
-  the pre-UEG0 remaining-input flag. A separate pure
-  `h264CabacCoeffAbsLevelMinus1CanComputeFromUeg0Suffix()` guard makes the
-  current pre-UEG0 input explicitly non-computable by the UEG0 suffix path.
+  `coeff_abs_level_minus1` prefix terminated and the number of one bins seen.
+  A covered prefix that terminates below the UEG0 cutoff (`uCoff == 14`) now
+  produces a real `coeff_abs_level_minus1` value, reads the immediately
+  following bypass bin as `coeff_sign_flag`, and stores the signed coefficient
+  level. Reader results expose these as `coeffAbsLevelMinus1Values` and
+  `coefficientLevels`; macroblock syntax propagates them as
+  `residualCoeffAbsLevelMinus1Values` and `residualCoefficientLevels`.
+  Terminated prefixes at one-count 4 and 5 therefore no longer consume four
+  incorrect suffix/remaining-input bypass bins.
+  The suffix/remaining-input result fields remain empty when a pre-UEG0 prefix
+  terminates, because no suffix exists on that path. When all fourteen
+  context-coded prefix bins are one, the reader switches to bypass-coded UEG0,
+  records the complete variable-length codeword in those fields, computes the
+  remaining value through the existing helper, and then reads the sign flag.
+  `coeffAbsLevelReadyForValueFlags` is one only for this complete UEG0 path;
+  the real coefficient vectors remain the authoritative decoded output.
+  `h264CabacCoeffAbsLevelMinus1UsesUeg0Suffix()` and the related pure helpers
+  document and test the `uCoff == 14` boundary and are now wired into the
+  reader pipeline.
   `h264CabacCoeffAbsLevelMinus1ReadUeg0SuffixValue()` can read a binary UEG0
-  suffix value for cutoff-or-later inputs, but it is still a pure helper and is
-  not connected to coefficient reconstruction. A paired pure
+  suffix value for cutoff-or-later inputs. It validates real UEG0 codewords
+  (`0`, `100`, `101`, `11000`, and so on), rather than treating the suffix as a
+  fixed-width integer. A paired pure
   `h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix()` helper computes a
   `coeff_abs_level_minus1` value only for cutoff-or-later UEG0 inputs and
-  rejects the current pre-UEG0 reader input; it also remains disconnected from
-  the reader pipeline. Its output parameter is only the pure helper result; no
-  reader result field carries a computed coefficient level yet. A pure
-  `h264CabacCoeffAbsLevelMinus1NeedsAdditionalPreUeg0Parsing()` helper marks
-  current pre-UEG0 remaining inputs such as `prefixOneCount == 4` plus four bins
-  as needing more pre-UEG0 parsing rather than value computation. The residual
-  reader now records that helper result in
-  `coeffAbsLevelNeedsAdditionalPreUeg0ParsingFlags`, and the macroblock layer
-  propagates it as
-  `residualCoeffAbsLevelNeedsAdditionalPreUeg0ParsingFlags`; the current ready
-  path records `[1]`, while direct-sign and covered-prefix-not-terminated paths
-  leave the flag list empty. A parallel ready-group field,
-  `coeffAbsLevelReadyNeedsAdditionalPreUeg0ParsingFlags`, records the same
-  helper result alongside the ready prefix one-count and ready remaining-input
-  bins; macroblock syntax exposes it as
-  `residualCoeffAbsLevelReadyNeedsAdditionalPreUeg0ParsingFlags`. A pure
+  rejects pre-UEG0 input; the cutoff reader uses it for coefficient reconstruction. A pure
+  `h264CabacCoeffAbsLevelMinus1NeedsAdditionalPreUeg0Parsing()` helper describes
+  legacy remaining-input shapes but is not used by the corrected terminated-prefix
+  reader path. A pure
   `h264CabacCoeffAbsLevelMinus1AdditionalPreUeg0ParsingTargetPrefixOneCount()`
-  helper returns the UEG0 cutoff (`14`) for those pre-UEG0 ready inputs and
-  `-1` otherwise; the reader records that target in
-  `coeffAbsLevelReadyAdditionalPreUeg0ParsingTargetPrefixOneCounts`, with
-  macroblock propagation through
-  `residualCoeffAbsLevelReadyAdditionalPreUeg0ParsingTargetPrefixOneCounts`.
-  This target is only a parsing boundary marker, not a computed coefficient
-  value. A paired pure
+  helper returns the UEG0 cutoff (`14`) for those legacy pre-UEG0 inputs and
+  `-1` otherwise. A paired pure
   `h264CabacCoeffAbsLevelMinus1AdditionalPreUeg0ParsingRemainingPrefixBins()`
   helper reports how many pre-UEG0 prefix bins are still needed to reach that
-  target (`10` for the current `prefixOneCount == 4` input, `1` for
-  `prefixOneCount == 13`, and `-1` when the target does not apply). The reader
-  now records the applicable ready-input count in
-  `coeffAbsLevelReadyAdditionalPreUeg0ParsingRemainingPrefixBinCounts`, with
-  macroblock propagation through
-  `residualCoeffAbsLevelReadyAdditionalPreUeg0ParsingRemainingPrefixBinCounts`;
-  this still does not read those additional prefix bins. A pure
+  target (`10` for `prefixOneCount == 4`, `1` for
+  `prefixOneCount == 13`, and `-1` when the target does not apply). A pure
   `h264CabacCoeffAbsLevelMinus1CanContinuePreUeg0PrefixParsing()` helper now
   combines the existing needs-additional, target, and remaining-prefix-bin
-  checks into one guard. The reader records it in
-  `coeffAbsLevelReadyCanContinuePreUeg0PrefixParsingFlags`, with macroblock
-  propagation through
-  `residualCoeffAbsLevelReadyCanContinuePreUeg0PrefixParsingFlags`; the current
-  ready path records `[1]`, while non-ready paths remain empty.
-  Direct-sign paths and covered-prefix-not-terminated paths keep the aligned
-  ready flag at zero and do not create suffix bins, ready prefix one-counts, or
-  ready suffix-bin groups, and they do not set value-input-complete or
-  fixed-input-recognized/pre-UEG0 remaining-input flags.
+  checks into one guard.
+  Covered terminated-prefix paths keep the legacy ready flag at zero and do
+  not create suffix bins, ready prefix one-counts, or ready suffix-bin groups.
   Prefix-bin context checks, bin decoding, and diagnostic
-  messages are centralized in the residual reader so adding the next prefix
-  step does not duplicate the first/next/third/fourth/fifth/sixth-bin plumbing.
-  Reader-level and macroblock-level regression tests now lock that large
-  terminated-prefix boundary before sign-flag parsing.
+  messages are centralized in the residual reader so the repeated ctxIdx 255
+  steps do not duplicate prefix-bin plumbing.
+  Reader-level and macroblock-level regression tests lock the corrected
+  terminated-prefix value reconstruction and verify that no false suffix bins
+  are consumed.
   The additional covered prefix contexts are table-driven after the first bin.
-  The sixth step reuses ctxIdx 255 and has reader tests for both zero
-  termination (`prefixOneCount == 5`, nine pre-UEG0 prefix bins remaining) and
-  one continuation (`prefixOneCount == 6`). The next prefix expansion should
-  add a seventh ctxIdx 255 step plus tests. The reader consumes only the first
-  two coefficients in that reverse
-  order. Chroma non-zero CBF, complete
-  significant/last maps, complete
-  coefficient level parsing, suffix parsing, and non-zero coefficient completion are
-  not implemented.
+  Prefix steps five through fourteen reuse ctxIdx 255. Reader and macroblock
+  tests cover reaching one-count 14, decoding the UEG0 zero codeword, producing
+  `coeff_abs_level_minus1 == 14`, and reconstructing coefficient level 15.
+  UEG0 prefix growth is bounded to 29 one bins for malformed-stream safety.
+  The reader consumes only the first two coefficients in reverse order.
+  Adaptive coefficient-level contexts, complete coefficient loops, final
+  residual-block integration, chroma non-zero CBF, and complete
+  significant/last maps remain unsupported.
 - `cabac/H264CabacSyntaxReader.h`: aggregate include for CABAC syntax readers;
   keep it thin.
 - `cabac/H264CabacMacroblockParser.*`: CABAC macroblock entry point. It currently
@@ -275,12 +215,12 @@ Current H.264 limitations:
   `cabac_init_idc` on `SliceInfo`, `H264SliceDataContext`, a context-based
   CABAC unsupported entry point, `cabac/H264CabacContextModel.*`, and
   `cabac/H264CabacDecoder.*` bin-decoding primitives. CABAC context-model
-  initialization currently covers ctxIdx 0-252, including B-slice skip/type
+  initialization currently covers ctxIdx 0-255, including B-slice skip/type
   starter contexts, P-slice `ref_idx_l0` starter contexts, coded-block-pattern
   contexts, `mb_qp_delta`, luma4x4/chroma DC residual `coded_block_flag`
   contexts, and luma4x4 `significant_coeff_flag` ctxIdx 134-148 and
   `last_significant_coeff_flag` ctxIdx 166-180 contexts plus the first through
-  sixth luma4x4 `coeff_abs_level_minus1` prefix bins.
+  fourteenth luma4x4 `coeff_abs_level_minus1` prefix bins.
   The CABAC macroblock entry point has a syntax-result boundary for supported
   I/P `mb_type` and narrow P_8x8
   `sub_mb_type`/`ref_idx_l0 == 0`/small `mvd_l0` scaffolding. The P_8x8 path
@@ -296,8 +236,9 @@ Current H.264 limitations:
   preserves partial CBF indices, CBF values, significant scan indices/flags,
   last-significant scan indices/flags, coefficient reverse-scan order,
   coefficient-level scan indices, inferred-final flags, first and next prefix
-  bins, covered-prefix terminated flags, covered-prefix one counts, and sign
-  flags, incomplete block, incomplete scan index, category, and next unsupported
+  bins, covered-prefix terminated flags, covered-prefix one counts, sign flags,
+  decoded pre-UEG0 `coeff_abs_level_minus1` values, and signed coefficient
+  levels, plus incomplete block, incomplete scan index, category, and next unsupported
   stage on the syntax result before returning
   `cabac_residual_incomplete`. Chroma DC
   non-zero CBF remains an incomplete boundary without significant-flag parsing.
@@ -306,7 +247,7 @@ Current H.264 limitations:
   CBF-zero state, then returns `cabac_residual_incomplete` with category
   `chroma_ac` and next stage `coded_block_flag`; chroma AC CBF parsing is still
   not implemented. Non-4:2:0 chroma residual, MVD absolute values greater than
-  three, non-zero `mb_qp_delta`, and coefficient parsing remain
+  three, non-zero `mb_qp_delta`, and complete coefficient-block parsing remain
   unsupported/incomplete at the macroblock entry point. For inter CBP-zero
   macroblocks, `mb_qp_delta` is not present and is deliberately not consumed.
 - CAVLC residual summaries are focused analysis data, not full inverse-scan,
@@ -330,6 +271,15 @@ also locks the framing regression where a four-byte AVCC length such as
 `00 00 01 ef` must not be mistaken for a three-byte Annex B start code. For
 B-frame streams, decoded frames are paired with pending packet analyses by PTS
 instead of decode-order FIFO, with FIFO retained as the no-timestamp fallback.
+The indexed MP4 and Matroska cases also run repeated real checkpoint seeks in
+the order `8 -> 3 -> 9`. `ZStreamEyeRealStreamSeekTests` compares each
+rebuffered target with its sequential-decode baseline, including decoded pixel
+hash, frame and packet PTS, packet evidence, frame type, and progress events.
+`ZStreamEyeRealStreamCorruptionTests` derives malformed inputs from all three
+corpus files at runtime. It covers header and tail truncation, damaged AVCC
+lengths in indexed containers, truncated packets, missing PPS/SPS diagnostics,
+bounded frame output, and a test timeout. Video streams with unresolved zero
+dimensions are rejected during open instead of being exposed as valid streams.
 
 For normal Codex/parser work, use the existing utility build:
 
@@ -436,23 +386,26 @@ Recommended next H.264 direction:
    `last_significant_coeff_flag` skeleton results, inferred final scan-position
    coefficient prefix routing with explicit reverse-scan and inferred-final
    result flags, plus the first `coeff_abs_level_minus1` prefix bin, one
-   additional prefix bin when the first prefix bin is one, third through sixth
-   prefix bins when the covered prefix bins keep returning one, and one bypass
-   `coeff_sign_flag` when the covered prefix bins terminate,
+   additional prefix bin when the first prefix bin is one, third through
+   fourteenth prefix bins when the covered prefix bins keep returning one,
+   bypass-coded UEG0 at the fourteen-one cutoff, and real
+   `coeff_abs_level_minus1` plus signed coefficient values when a covered
+   pre-UEG0 prefix terminates,
    4:2:0 chroma DC CBF-zero residuals for `coded_block_pattern_chroma == 1`,
    plus a structured chroma AC incomplete boundary for
-   `coded_block_pattern_chroma == 2`, all behind `mb_qp_delta == 0`;
-   coefficient syntax is still out of scope. Keep syntax-result structs
+   `coded_block_pattern_chroma == 2`, all behind `mb_qp_delta == 0`.
+   Complete residual coefficient syntax is still out of scope. Keep syntax-result structs
    separate from final model mutation.
 2. Wire only one narrow CABAC macroblock path at a time, preserving structured
    unsupported diagnostics for the first unimplemented syntax element.
 3. Keep CABAC modules under `h264/cabac/` and CAVLC modules under `h264/cavlc/`.
    Reuse shared slice state via `H264SliceDataContext`, but keep
    entropy-specific state and tables out of `H264MacroblockParser.cpp`.
-4. Next residual step should likely add one very small
-   `coeff_abs_level_minus1` prefix/suffix boundary, or continue walking the
-   saved reverse-scan coefficient order beyond the first two entries. Do not
-   jump directly to full coefficient reconstruction.
+4. Next residual step should add adaptive `coeff_abs_level_minus1` context
+   selection from previously decoded coefficient levels, then continue walking
+   the saved reverse-scan order beyond the first two entries. Keep the existing
+   UEG0 safety bound and do not jump directly to full residual-block
+   reconstruction.
 5. Preserve structured unsupported diagnostics for paths that are not ready.
 
 Useful H.264 test areas:

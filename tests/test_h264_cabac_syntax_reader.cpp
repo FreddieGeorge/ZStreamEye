@@ -102,10 +102,12 @@ void testCoeffAbsLevelMinus1PreUeg0RemainingInputHelper()
             "CABAC coeff_abs_level_minus1 current narrow input cannot compute from UEG0 suffix");
     require(!h264CabacCoeffAbsLevelMinus1CanComputeFromUeg0Suffix({13, {0, 0, 0, 0}}),
             "CABAC coeff_abs_level_minus1 pre-UEG0 input cannot compute from UEG0 suffix");
-    require(h264CabacCoeffAbsLevelMinus1CanComputeFromUeg0Suffix({14, {0, 0, 0, 0}}),
-            "CABAC coeff_abs_level_minus1 cutoff input can compute from UEG0 suffix shape");
+    require(!h264CabacCoeffAbsLevelMinus1CanComputeFromUeg0Suffix({14, {0, 0, 0, 0}}),
+            "CABAC coeff_abs_level_minus1 rejects a non-codeword UEG0 input shape");
     require(h264CabacCoeffAbsLevelMinus1CanComputeFromUeg0Suffix({14, {0}}),
             "CABAC coeff_abs_level_minus1 cutoff input accepts zero UEG0 suffix codeword");
+    require(h264CabacCoeffAbsLevelMinus1CanComputeFromUeg0Suffix({14, {1, 0, 0}}),
+            "CABAC coeff_abs_level_minus1 cutoff input accepts UEG0 value-one codeword");
     require(!h264CabacCoeffAbsLevelMinus1CanComputeFromUeg0Suffix({14, {0, 0, 0}}),
             "CABAC coeff_abs_level_minus1 cutoff short input cannot compute from UEG0 suffix");
     require(!h264CabacCoeffAbsLevelMinus1HasPreUeg0RemainingInput({4, {}}),
@@ -139,18 +141,22 @@ void testCoeffAbsLevelMinus1Ueg0SuffixValueHelper()
             "CABAC coeff_abs_level_minus1 pre-UEG0 suffix value output remains unchanged");
     require(!h264CabacCoeffAbsLevelMinus1ReadUeg0SuffixValue({14, {0, 0, 0, 0}}, nullptr),
             "CABAC coeff_abs_level_minus1 suffix value rejects null output");
-    require(h264CabacCoeffAbsLevelMinus1ReadUeg0SuffixValue({14, {0, 0, 0, 0}}, &suffixValue),
-            "CABAC coeff_abs_level_minus1 zero suffix value result");
-    require(suffixValue == 0, "CABAC coeff_abs_level_minus1 zero suffix value");
+    require(!h264CabacCoeffAbsLevelMinus1ReadUeg0SuffixValue({14, {0, 0, 0, 0}}, &suffixValue),
+            "CABAC coeff_abs_level_minus1 rejects non-codeword suffix input");
+    require(suffixValue == -1,
+            "CABAC coeff_abs_level_minus1 rejected suffix leaves output unchanged");
     require(h264CabacCoeffAbsLevelMinus1ReadUeg0SuffixValue({14, {0}}, &suffixValue),
             "CABAC coeff_abs_level_minus1 zero UEG0 suffix codeword result");
     require(suffixValue == 0, "CABAC coeff_abs_level_minus1 zero UEG0 suffix codeword value");
-    require(h264CabacCoeffAbsLevelMinus1ReadUeg0SuffixValue({14, {1, 0, 1, 1}}, &suffixValue),
-            "CABAC coeff_abs_level_minus1 mixed suffix value result");
-    require(suffixValue == 11, "CABAC coeff_abs_level_minus1 mixed suffix value");
-    require(!h264CabacCoeffAbsLevelMinus1ReadUeg0SuffixValue({14, {0, 0, 2, 0}}, &suffixValue),
+    require(h264CabacCoeffAbsLevelMinus1ReadUeg0SuffixValue({14, {1, 0, 1}}, &suffixValue),
+            "CABAC coeff_abs_level_minus1 UEG0 value-two result");
+    require(suffixValue == 2, "CABAC coeff_abs_level_minus1 UEG0 value-two suffix");
+    require(h264CabacCoeffAbsLevelMinus1ReadUeg0SuffixValue({14, {1, 1, 0, 0, 0}}, &suffixValue),
+            "CABAC coeff_abs_level_minus1 UEG0 value-three result");
+    require(suffixValue == 3, "CABAC coeff_abs_level_minus1 UEG0 value-three suffix");
+    require(!h264CabacCoeffAbsLevelMinus1ReadUeg0SuffixValue({14, {1, 0, 2}}, &suffixValue),
             "CABAC coeff_abs_level_minus1 suffix value rejects non-binary bin");
-    require(suffixValue == 11,
+    require(suffixValue == 3,
             "CABAC coeff_abs_level_minus1 non-binary suffix value output remains unchanged");
 }
 
@@ -174,19 +180,20 @@ void testCoeffAbsLevelMinus1Ueg0SuffixComputeHelper()
             "CABAC coeff_abs_level_minus1 non-binary UEG0 compute output remains unchanged");
     require(!h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix({14, {0, 0, 0, 0}}, nullptr),
             "CABAC coeff_abs_level_minus1 compute rejects null output");
-    require(h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix({14, {0, 0, 0, 0}},
-                                                              &coeffAbsLevelMinus1Value),
-            "CABAC coeff_abs_level_minus1 zero UEG0 input computes coeff_abs_level_minus1");
-    require(coeffAbsLevelMinus1Value == 14, "CABAC coeff_abs_level_minus1 zero UEG0 value");
+    require(!h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix({14, {0, 0, 0, 0}},
+                                                               &coeffAbsLevelMinus1Value),
+            "CABAC coeff_abs_level_minus1 non-codeword UEG0 input is rejected");
+    require(coeffAbsLevelMinus1Value == -1,
+            "CABAC coeff_abs_level_minus1 rejected codeword leaves output unchanged");
     require(h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix({14, {0}},
                                                               &coeffAbsLevelMinus1Value),
             "CABAC coeff_abs_level_minus1 zero UEG0 suffix codeword computes value");
     require(coeffAbsLevelMinus1Value == 14,
             "CABAC coeff_abs_level_minus1 zero UEG0 suffix codeword value");
-    require(h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix({14, {1, 0, 1, 1}},
+    require(h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix({14, {1, 0, 1}},
                                                               &coeffAbsLevelMinus1Value),
-            "CABAC coeff_abs_level_minus1 mixed UEG0 input computes coeff_abs_level_minus1");
-    require(coeffAbsLevelMinus1Value == 25, "CABAC coeff_abs_level_minus1 mixed UEG0 value");
+            "CABAC coeff_abs_level_minus1 UEG0 value-two input computes coeff_abs_level_minus1");
+    require(coeffAbsLevelMinus1Value == 16, "CABAC coeff_abs_level_minus1 UEG0 value-two result");
 }
 
 H264CabacDecoder initializedDecoder(BitReader &reader)
@@ -4166,6 +4173,155 @@ void testReadBSliceMbSkipFlagWithCoveredContext()
     require(result.value == 0 || result.value == 1, "CABAC B mb_skip_flag bin value is binary");
     require(result.ctxIdx == 24, "CABAC B mb_skip_flag covered ctxIdx");
 }
+
+void testReadResidualLuma4x4TerminatedPrefixProducesCoefficientValue()
+{
+    BitReader reader(QByteArray::fromHex("000000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+    H264CabacContextModelSet contexts =
+        initializedLuma4x4CoeffLevelContextsWithFifthContext(1, 1, 1, 1, 0);
+
+    const H264CabacResidualLuma4x4Result result =
+        h264ReadCabacResidualLuma4x4CodedBlockFlagsZero(reader, decoder, contexts, 8);
+
+    require(result.ok, "CABAC terminated prefix coefficient result");
+    require(!result.complete, "CABAC terminated prefix residual block remains incomplete");
+    require(result.coeffAbsLevelPrefixOneCounts == QVector<int>{4},
+            "CABAC terminated prefix one-count");
+    require(result.coeffAbsLevelMinus1Values == QVector<int>{4},
+            "CABAC terminated prefix coeff_abs_level_minus1 value");
+    require(result.coeffSignFlags == QVector<int>{0},
+            "CABAC terminated prefix sign flag");
+    require(result.coefficientLevels == QVector<int>{5},
+            "CABAC terminated prefix signed coefficient value");
+    require(result.coeffAbsLevelSuffixBins.isEmpty(),
+            "CABAC terminated pre-UEG0 prefix consumes no suffix bins");
+    require(result.coeffAbsLevelRemainingInputBins.isEmpty(),
+            "CABAC terminated pre-UEG0 prefix has no remaining input bins");
+    require(result.incompleteStage == QStringLiteral("residual_coefficients"),
+            "CABAC terminated prefix stops at residual coefficient completion");
+}
+
+void testReadResidualLuma4x4SixthBinZeroProducesCoefficientValue()
+{
+    BitReader reader(QByteArray::fromHex("0100000000000000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+    H264CabacContextModelSet contexts =
+        initializedLuma4x4CoeffLevelContextsWithFifthContext(1, 1, 1, 1, 1);
+
+    const H264CabacResidualLuma4x4Result result =
+        h264ReadCabacResidualLuma4x4CodedBlockFlagsZero(reader, decoder, contexts, 8);
+
+    require(result.ok, "CABAC sixth-bin zero coefficient result");
+    require(!result.complete, "CABAC sixth-bin zero residual block remains incomplete");
+    require(result.coeffAbsLevelPrefixOneCounts == QVector<int>{5},
+            "CABAC sixth-bin zero prefix one-count");
+    require(result.coeffAbsLevelMinus1Values == QVector<int>{5},
+            "CABAC sixth-bin zero coeff_abs_level_minus1 value");
+    require(result.coeffSignFlags.size() == 1,
+            "CABAC sixth-bin zero sign count");
+    require(result.coefficientLevels.size() == 1
+                && (result.coefficientLevels[0] == 6 || result.coefficientLevels[0] == -6),
+            "CABAC sixth-bin zero signed coefficient magnitude");
+    require(result.coeffAbsLevelSuffixBins.isEmpty(),
+            "CABAC sixth-bin zero consumes no suffix bins");
+    require(result.incompleteStage == QStringLiteral("residual_coefficients"),
+            "CABAC sixth-bin zero stops at residual coefficient completion");
+}
+
+void testReadResidualLuma4x4CutoffUsesUeg0ZeroCodeword()
+{
+    BitReader reader(QByteArray::fromHex("000000000000000000000000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+    H264CabacContextModelSet contexts =
+        initializedLuma4x4CoeffLevelContextsWithFifthContext(1, 1, 1, 1, 1);
+
+    const H264CabacResidualLuma4x4Result result =
+        h264ReadCabacResidualLuma4x4CodedBlockFlagsZero(reader, decoder, contexts, 8);
+
+    require(result.ok, "CABAC cutoff UEG0 zero-codeword result");
+    require(!result.complete, "CABAC cutoff UEG0 residual block remains incomplete");
+    require(result.coeffAbsLevelPrefixNextBins.size() == 13,
+            "CABAC cutoff reads all thirteen additional context-coded prefix bins");
+    require(result.coeffAbsLevelPrefixOneCounts == QVector<int>{14},
+            "CABAC cutoff prefix one-count");
+    require(result.coeffAbsLevelPrefixTerminatedFlags == QVector<int>{1},
+            "CABAC cutoff prefix completion flag");
+    require(result.coeffAbsLevelSuffixBins == QVector<int>{0},
+            "CABAC cutoff UEG0 zero codeword bins");
+    require(result.coeffAbsLevelSuffixBinCounts == QVector<int>{1},
+            "CABAC cutoff UEG0 codeword bin count");
+    require(result.coeffAbsLevelReadyForValueFlags == QVector<int>{1},
+            "CABAC cutoff UEG0 value-ready flag");
+    require(result.coeffAbsLevelMinus1Values == QVector<int>{14},
+            "CABAC cutoff coeff_abs_level_minus1 value");
+    require(result.coeffSignFlags == QVector<int>{0},
+            "CABAC cutoff coefficient sign");
+    require(result.coefficientLevels == QVector<int>{15},
+            "CABAC cutoff signed coefficient value");
+    require(result.incompleteStage == QStringLiteral("residual_coefficients"),
+            "CABAC cutoff stops at residual coefficient completion");
+}
+
+void testReadCabacMacroblockSyntaxPropagatesCoefficientValue()
+{
+    BitReader reader(QByteArray::fromHex("00000000000000000000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+    SliceInfo slice;
+    PpsInfo pps;
+    SpsInfo sps;
+    initializeP8x8LumaResidualSlice(slice, sps);
+    H264SliceDataContext context(reader, slice, pps, sps);
+    H264CabacContextModelSet contexts =
+        initializedP8x8LumaResidualCoeffLevelContextsWithFifthContext(
+            context.currentQp, 1, 1, 1, 1, 0);
+
+    const H264CabacMacroblockSyntaxResult result =
+        h264ReadCabacMacroblockSyntax(context, decoder, contexts);
+
+    require(result.ok, "CABAC macroblock coefficient propagation result");
+    require(!result.complete, "CABAC macroblock coefficient propagation remains incomplete");
+    require(result.residualCoeffAbsLevelMinus1Values == QVector<int>{4},
+            "CABAC macroblock coeff_abs_level_minus1 propagation");
+    require(result.residualCoeffSignFlags == QVector<int>{0},
+            "CABAC macroblock coefficient sign propagation");
+    require(result.residualCoefficientLevels == QVector<int>{5},
+            "CABAC macroblock signed coefficient propagation");
+    require(result.residualCoeffAbsLevelSuffixBins.isEmpty(),
+            "CABAC macroblock pre-UEG0 coefficient has no suffix bins");
+    require(result.residualIncompleteStage == QStringLiteral("residual_coefficients"),
+            "CABAC macroblock coefficient propagation stop stage");
+}
+
+void testReadCabacMacroblockSyntaxPropagatesCutoffUeg0Value()
+{
+    BitReader reader(QByteArray::fromHex("000000000000000000000000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+    SliceInfo slice;
+    PpsInfo pps;
+    SpsInfo sps;
+    initializeP8x8LumaResidualSlice(slice, sps);
+    H264SliceDataContext context(reader, slice, pps, sps);
+    H264CabacContextModelSet contexts =
+        initializedP8x8LumaResidualCoeffLevelContextsWithFifthContext(
+            context.currentQp, 1, 1, 1, 1, 1);
+
+    const H264CabacMacroblockSyntaxResult result =
+        h264ReadCabacMacroblockSyntax(context, decoder, contexts);
+
+    require(result.ok, "CABAC macroblock cutoff UEG0 propagation result");
+    require(!result.complete, "CABAC macroblock cutoff UEG0 remains incomplete");
+    require(result.residualCoeffAbsLevelPrefixOneCounts == QVector<int>{14},
+            "CABAC macroblock cutoff prefix propagation");
+    require(result.residualCoeffAbsLevelSuffixBins == QVector<int>{0},
+            "CABAC macroblock UEG0 codeword propagation");
+    require(result.residualCoeffAbsLevelMinus1Values == QVector<int>{14},
+            "CABAC macroblock cutoff coeff_abs_level_minus1 propagation");
+    require(result.residualCoefficientLevels == QVector<int>{15},
+            "CABAC macroblock cutoff signed coefficient propagation");
+    require(result.residualIncompleteStage == QStringLiteral("residual_coefficients"),
+            "CABAC macroblock cutoff propagation stop stage");
+}
 }
 
 int main()
@@ -4211,13 +4367,8 @@ int main()
     testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelThirdBinOnePartial();
     testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelFourthBinZeroPartial();
     testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelFourthBinOnePartial();
-    testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelFifthBinZeroPartial();
-    testReadCabacMacroblockSyntaxP8x8ResidualLargeTerminatedPrefixStopsBeforeSign();
-    testReadCabacMacroblockSyntaxP8x8ResidualFirstSuffixBypassBinPartial();
-    testReadCabacMacroblockSyntaxP8x8ResidualSecondSuffixBypassBinPartial();
-    testReadCabacMacroblockSyntaxP8x8ResidualThirdSuffixBypassBinPartial();
-    testReadCabacMacroblockSyntaxP8x8ResidualFourthSuffixBypassBinPartial();
-    testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelSixthBinOnePartial();
+    testReadCabacMacroblockSyntaxPropagatesCoefficientValue();
+    testReadCabacMacroblockSyntaxPropagatesCutoffUeg0Value();
     testReadCabacMacroblockSyntaxP8x8SmallNonZeroMvd();
     testReadCabacMacroblockSyntaxP8x8NonZeroMvdIncomplete();
     testReadCodedBlockPatternZeroMonochrome();
@@ -4241,15 +4392,9 @@ int main()
     testReadResidualLuma4x4CoeffAbsLevelFourthBinZeroIncomplete();
     testReadResidualLuma4x4CoeffAbsLevelFourthBinOneIncomplete();
     testReadResidualLuma4x4CoeffAbsLevelFourthBinDecodeFailure();
-    testReadResidualLuma4x4CoeffAbsLevelFifthBinZeroIncomplete();
-    testReadResidualLuma4x4CoeffAbsLevelSixthBinOneIncomplete();
-    testReadResidualLuma4x4CoeffAbsLevelSixthBinZeroIncomplete();
-    testReadResidualLuma4x4CoeffAbsLevelTerminatedPrefixKeepsSuffixInputs();
-    testReadResidualLuma4x4CoeffAbsLevelTerminatedLargePrefixStopsBeforeSign();
-    testReadResidualLuma4x4CoeffAbsLevelFirstSuffixBypassBinIncomplete();
-    testReadResidualLuma4x4CoeffAbsLevelSecondSuffixBypassBinIncomplete();
-    testReadResidualLuma4x4CoeffAbsLevelThirdSuffixBypassBinIncomplete();
-    testReadResidualLuma4x4CoeffAbsLevelFourthSuffixBypassBinIncomplete();
+    testReadResidualLuma4x4TerminatedPrefixProducesCoefficientValue();
+    testReadResidualLuma4x4SixthBinZeroProducesCoefficientValue();
+    testReadResidualLuma4x4CutoffUsesUeg0ZeroCodeword();
     testReadResidualLuma4x4CoeffAbsLevelNextBinMissingContext();
     testReadResidualLuma4x4LastSignificantZeroIncomplete();
     testReadResidualLuma4x4CodedBlockFlagsZeroSingleLuma8x8();

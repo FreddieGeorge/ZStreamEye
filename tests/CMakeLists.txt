@@ -36,3 +36,14 @@ add_zstreameye_core_test(ZStreamEyeRealStreamCorpusTests test_real_stream_corpus
 target_compile_definitions(ZStreamEyeRealStreamCorpusTests PRIVATE
     ZSTREAMEYE_TEST_CORPUS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/corpus"
 )
+
+add_zstreameye_core_test(ZStreamEyeRealStreamSeekTests test_real_stream_seek.cpp)
+target_compile_definitions(ZStreamEyeRealStreamSeekTests PRIVATE
+    ZSTREAMEYE_TEST_CORPUS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/corpus"
+)
+
+add_zstreameye_core_test(ZStreamEyeRealStreamCorruptionTests test_real_stream_corruption.cpp)
+target_compile_definitions(ZStreamEyeRealStreamCorruptionTests PRIVATE
+    ZSTREAMEYE_TEST_CORPUS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/corpus"
+)
+set_tests_properties(ZStreamEyeRealStreamCorruptionTests PROPERTIES TIMEOUT 15)

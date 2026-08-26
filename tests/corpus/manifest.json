@@ -14,7 +14,8 @@
       "minimum_analyzed_frames": 12,
       "stream_count": 1,
       "audio_stream_count": 0,
-      "has_b_frames": false
+      "has_b_frames": false,
+      "seek_targets": []
     },
     {
       "file": "h264_cabac_main_bframes.mp4",
@@ -28,7 +29,8 @@
       "minimum_analyzed_frames": 12,
       "stream_count": 1,
       "audio_stream_count": 0,
-      "has_b_frames": true
+      "has_b_frames": true,
+      "seek_targets": [8, 3, 9]
     },
     {
       "file": "h264_cabac_high_aac.mkv",
@@ -42,7 +44,8 @@
       "minimum_analyzed_frames": 12,
       "stream_count": 2,
       "audio_stream_count": 1,
-      "has_b_frames": true
+      "has_b_frames": true,
+      "seek_targets": [8, 3, 9]
     }
   ]
 }

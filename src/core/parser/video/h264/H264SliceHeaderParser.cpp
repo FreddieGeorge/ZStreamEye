@@ -59,12 +59,23 @@ SliceInfo H264Parser::parseSliceHeader(const QByteArray &rbsp, int nalUnitType, 
     }
 
     const PpsInfo pps = m_ppsById.value(slice.picParameterSetId);
+    if (!pps.valid) {
+        appendDiagnostic(
+            QStringLiteral("pps_missing"),
+            QStringLiteral("Slice references unavailable PPS id %1; remaining slice syntax was not parsed.")
+                .arg(slice.picParameterSetId));
+        slice.valid = false;
+        return slice;
+    }
+
     const SpsInfo sps = m_spsById.value(pps.seqParameterSetId);
-    if (!pps.valid || !sps.valid) {
-        if (reader.hasError()) {
-            appendHeaderTruncated();
-        }
-        slice.valid = !reader.hasError();
+    if (!sps.valid) {
+        appendDiagnostic(
+            QStringLiteral("sps_missing"),
+            QStringLiteral("PPS id %1 references unavailable SPS id %2; remaining slice syntax was not parsed.")
+                .arg(slice.picParameterSetId)
+                .arg(pps.seqParameterSetId));
+        slice.valid = false;
         return slice;
     }
 

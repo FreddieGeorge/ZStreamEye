@@ -115,6 +115,13 @@ bool FFmpegDecoder::openFile(const QString &filePath)
                                     m_videoStreamIndex,
                                     decoder,
                                     &m_streamInfo);
+    if (m_streamInfo.width <= 0 || m_streamInfo.height <= 0) {
+        setError(QStringLiteral("Video stream has invalid dimensions: %1x%2.")
+                     .arg(m_streamInfo.width)
+                     .arg(m_streamInfo.height));
+        close();
+        return false;
+    }
 
     const QByteArray extraData = m_codecContext->extradata != nullptr && m_codecContext->extradata_size > 0
         ? QByteArray(reinterpret_cast<const char *>(m_codecContext->extradata),
