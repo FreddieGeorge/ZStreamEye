@@ -40,9 +40,9 @@ The project currently supports video loading/decoding, controllable playback, H.
   motion-vector L0/L1/Other list counts, motion-vector magnitude summaries, and
   diagnostic distribution derived from internal `FrameAnalysis` data.
 - Parse H.264 NALU, SPS, PPS, Slice Header, selected CAVLC macroblock fields,
-  residual block/coefficient summaries, QP, P-slice L0 motion vectors, and
-  focused non-direct B-slice L0/L1/Bi motion vectors with the custom
-  `H264Parser`.
+  residual block/coefficient summaries, QP, P-slice L0 motion vectors, focused
+  non-direct B-slice L0/L1/Bi motion vectors, and a real-encoder-verified
+  narrow CABAC P-slice path with the custom `H264Parser`.
 - Show frame syntax information in a dockable property tree.
 - Show overlay availability in the property tree, including QP range/constant
   notes and motion-vector support diagnostics for the current frame.
@@ -73,7 +73,12 @@ Current limitations:
 - HEVC frame types are currently reported as coarse `IRAP` / `VCL` labels from
   NAL-unit classification. Full I/P/B-style HEVC slice typing requires deeper
   HEVC slice-header parsing.
-- CABAC, B_Direct/B_8x8 motion vectors, and MBAFF/FMO are reported as unsupported or partially parsed; CAVLC P_8x8/P_8x8ref0 L0 and non-direct B_L0/B_L1/Bi motion vectors have focused parser coverage and regression fixtures.
+- CABAC parsing is intentionally narrow: real x264 P-slice coverage currently
+  includes P_Skip, P_L0_16x16, selected P_8x8 syntax, complete `mvd_l0`,
+  luma4x4 residuals, and 4:2:0 chroma DC residuals. Non-zero CABAC
+  `mb_qp_delta`, chroma AC, broader P partitions, CABAC intra/B macroblocks,
+  B_Direct/B_8x8 motion vectors, and MBAFF/FMO remain unsupported or
+  diagnostic-only paths.
 - The property tree limits displayed macroblocks to keep playback responsive; overlay data still uses the parsed macroblock list.
 - Text OSD elements are regular Qt child widgets above the OpenGL canvas rather
   than `QPainter::drawText()` calls inside `paintGL()`, avoiding known text
@@ -331,12 +336,12 @@ Key modules:
 
 Recommended next work:
 
-1. Smoke-test the latest Windows installer/portable release and upgrade path.
-2. Broaden old-frame rebuffer smoke coverage with real raw Annex B `.264` and
-   indexed `.mp4`/`.mkv` files; cancellation/progress and core state tests are
-   already in place.
-3. Expand parser coverage beyond the focused CAVLC P_8x8/P_8x8ref0 and
-   non-direct B-slice fixtures; keep B_Direct/B_8x8/CABAC diagnostics precise.
+1. Implement complete non-zero CABAC `mb_qp_delta` decoding, QP state updates,
+   and real-fixture assertions; this is the current first boundary in
+   `x264_cabac_residual.h264`.
+2. Continue the real CABAC fixture to its next actual unsupported syntax, then
+   add narrow 4:2:0 chroma AC and P_16x8/P_8x16 paths as encountered.
+3. Smoke-test the latest Windows installer/portable package and upgrade path.
 4. Add richer packet/access-unit browsing on top of the AAC/MP3 skeletons; keep
    audio analysis separate from `VideoCanvas`. The current stream selector
    filters the decoded access-unit list; it does not yet switch the FFmpeg
@@ -346,7 +351,8 @@ Recommended next work:
 6. Expand the bitstream hex dock with graphical sub-byte decoration and broader
    offset normalization for macroblock fields and container/elementary-stream
    wrappers.
-7. Broaden residual coefficient and B-slice coverage toward real-world streams.
+7. Broaden CABAC real-encoder fixtures before starting full intra/B-slice
+   macroblock families.
 
 For future AI/coding agents, see [docs/ai-continuation-notes.md](docs/ai-continuation-notes.md).
 For the longer-term StreamEye-class roadmap, see [docs/ai-streameye-roadmap.md](docs/ai-streameye-roadmap.md).

@@ -12,8 +12,8 @@ Current foundation:
 - FFmpeg background decoding through `DecodeWorker`.
 - Codec-neutral parser and analysis models: `IBitstreamParser`,
   `FrameAnalysis`, `MediaKind`, `AccessUnitKind`, and `StreamInfo`.
-- Direct H.264 parser for Annex B and AVCC packets, with partial CAVLC
-  macroblock/residual/MV coverage and structured unsupported diagnostics.
+- Direct H.264 parser for Annex B and AVCC packets, with focused CAVLC coverage
+  and a real-encoder-verified narrow CABAC P-slice macroblock/residual/MV path.
 - Shallow HEVC, AAC ADTS, and MP3 parser skeletons that validate the generic
   access-unit path.
 - JSON/CSV/screenshot exports, persisted UI settings, Windows CI, and release
@@ -39,8 +39,9 @@ Key work:
 
 - Broaden CAVLC residual, P_8x8/P_8x8ref0, and B-slice motion-vector coverage.
 - Add B_Direct, B_8x8, MBAFF/interlaced, and FMO support or precise diagnostics.
-- Add CABAC only in layers: context models, arithmetic decoder, syntax helpers,
-  then macroblock integration.
+- Continue CABAC in layers. Context models, arithmetic decoding, syntax
+  helpers, and narrow P-slice macroblock integration are in place; extend one
+  real-stream boundary at a time without collapsing those layers.
 - Keep H.264 entropy modules separated under `h264/cabac/` and `h264/cavlc/`;
   shared slice state, macroblock type helpers, and motion-vector helpers should
   stay outside those folders.
@@ -226,13 +227,12 @@ Done when:
 Use focused commits. Current high-value themes:
 
 ```text
-Wire CABAC CBP-zero reader into P_8x8 macroblock path
-Expand CABAC ctxIdx table coverage for contexts 73-77
-Expand CABAC non-zero mvd_l0 syntax reader
-Add CABAC residual coded_block_flag zero skeleton
-Wire CABAC residual coded_block_flag zero into one narrow CBP-nonzero path
-Expand H264 residual coefficient fixtures
-Expand H264 P8x8 sub-macroblock fixtures
+Complete CABAC non-zero mb_qp_delta and QP state updates
+Advance the real x264 CABAC fixture to its next syntax boundary
+Add narrow 4:2:0 CABAC chroma AC residuals
+Complete CABAC P_16x8 and P_8x16 motion paths
+Add more real-encoder CABAC P-slice fixtures
+Add CABAC P-slice intra fallback
 Parse H264 B_Direct motion vectors
 Parse H264 B_8x8 sub-macroblock motion vectors
 Improve macroblock/residual bit-offset highlighting

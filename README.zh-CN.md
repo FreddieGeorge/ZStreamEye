@@ -25,7 +25,7 @@ ZStreamEye 是一个跨平台桌面 H.264 码流分析工具，基于 C++17、Qt
 - 在解析的访问单元上保留包元数据和原始包字节，以便后续的十六进制/位视图可以追溯字段到包证据。
 - 为选定访问单元的包字节显示只读的位流十六进制面板，并通过语法位字段选择驱动字节范围高亮。
 - 显示分析统计面板，包含访问单元计数、帧类型分布、宏块/QP 汇总、QP 分桶分布、运动矢量幅度汇总和诊断分布；这些统计都来自内部 `FrameAnalysis` 数据。
-- 使用自研 `H264Parser` 解析 H.264 NALU、SPS、PPS、Slice Header、选定的 CAVLC 宏块字段、残差块、QP 和 P-slice L0 运动矢量。
+- 使用自研 `H264Parser` 解析 H.264 NALU、SPS、PPS、Slice Header、选定的 CAVLC 宏块字段、残差块、QP、P-slice L0 运动矢量，以及经真实编码器码流验证的窄范围 CABAC P-slice 路径。
 - 在可停靠的属性树中显示帧语法信息。
 - 在属性树中显示 overlay 可用性，包括当前帧的 QP 范围/常量注释和运动矢量支持诊断。
 - 显示帧列表信息，如帧类型、POC 和 `frame_num`。
@@ -41,8 +41,8 @@ ZStreamEye 是一个跨平台桌面 H.264 码流分析工具，基于 C++17、Qt
 
 ## 当前限制
 
-- CAVLC 残差解析消耗并计数残差块以便宏块解析可以继续，但单个系数值尚未在 UI/导出模型中公开。
-- CABAC、B_Direct/B_8x8 运动矢量以及 MBAFF/FMO 报告为不支持或部分解析；CAVLC P_8x8/P_8x8ref0 L0 和非直接 B_L0/B_L1/Bi 运动矢量有重点解析覆盖。
+- CAVLC 残差解析已公开包含扫描位置、level 和 run-before 的残差块及非零系数摘要，但仍不是完整的反扫描、反量化或变换可视化。
+- CABAC 解析目前仍是窄范围路径：真实 x264 P-slice 已覆盖 P_Skip、P_L0_16x16、部分 P_8x8 语法、完整 `mvd_l0`、luma4x4 残差和 4:2:0 chroma DC 残差。非零 CABAC `mb_qp_delta`、chroma AC、更广的 P 分区、CABAC intra/B 宏块、B_Direct/B_8x8 运动矢量以及 MBAFF/FMO 仍是不支持或仅诊断路径。
 - 属性树限制显示的宏块数量以保持播放响应性；overlay 数据仍使用解析的宏块列表。
 - 由于某些 Windows/OpenGL 部署渲染 QPainter 文本不正确，OpenGL 画布文本故意避免用于分析提示；请使用属性树和状态栏获取分析解释。
 
@@ -273,12 +273,12 @@ cmake --build build
 
 推荐的下一步工作：
 
-1. 对最新的 Windows 安装程序/便携版本和升级路径进行冒烟测试。
-2. 使用真实的原始 Annex B `.264` 和索引 `.mp4`/`.mkv` 文件扩展旧帧重新缓冲冒烟覆盖；取消/进度和核心状态测试已经到位。
-3. 扩展解析器覆盖范围，超越重点的 CAVLC P_8x8/P_8x8ref0 和非直接 B-slice 测试用例；保持 B_Direct/B_8x8/CABAC 诊断精确。
+1. 完整实现 CABAC 非零 `mb_qp_delta` 解码、QP 状态更新和真实 fixture 断言；这是 `x264_cabac_residual.h264` 当前遇到的第一个边界。
+2. 继续推进真实 CABAC fixture，直到遇到下一个实际不支持的语法，再按实际顺序扩展窄范围 4:2:0 chroma AC 和 P_16x8/P_8x16 路径。
+3. 对最新的 Windows 安装程序/便携包和升级路径进行冒烟测试。
 4. 在 AAC/MP3 骨架之上添加更丰富的包/访问单元浏览；保持音频分析与 `VideoCanvas` 分离。当前的流选择器过滤解码的访问单元列表；尚未切换 FFmpeg 播放流或提供仅音频分析。
 5. 使用图形化子字节装饰和更广泛的偏移标准化扩展位流十六进制面板，用于宏块字段和容器/基本流包装器。
-6. 公开更丰富的残差系数细节并扩展宏块支持。
+6. 在开始完整 CABAC intra/B-slice 宏块族之前，先扩充真实编码器 CABAC P-slice fixtures。
 
 有关未来 AI/编码代理的信息，请参见 [docs/ai-continuation-notes.md](docs/ai-continuation-notes.md)。有关更长期的 StreamEye 类路线图，请参见 [docs/ai-streameye-roadmap.md](docs/ai-streameye-roadmap.md)。
 

@@ -101,10 +101,11 @@ Important H.264 files:
   readers. It currently covers `mb_skip_flag`, `mb_type` prefix bins, I-slice
   `I_NxN`/`I_16x16`/`I_PCM`, and P-slice `P_L0_16x16`,
   `P_L0_L0_16x8`, `P_L0_L0_8x16`, plus `P_8x8` detection. It also has a
-  narrow `coded_block_pattern == 0` reader with luma ctxIdx derivation over
-  contexts 73-76 and first chroma context 77; non-zero luma/chroma CBP still
-  returns incomplete. It also has a narrow `mb_qp_delta == 0` reader for future
-  residual-bearing paths; non-zero `mb_qp_delta` returns incomplete.
+  coded-block-pattern reader with luma ctxIdx derivation over contexts 73-76
+  and chroma contexts beginning at 77. Narrow non-zero luma and 4:2:0 chroma
+  paths are integrated with the residual reader. It has a complete
+  `mb_qp_delta == 0` path; non-zero `mb_qp_delta` remains the current explicit
+  incomplete boundary.
 - `cabac/H264CabacSubMacroblockSyntaxReader.*`: focused P sub-macroblock
   readers for `sub_mb_type`, narrow `ref_idx_l0 == 0`, and complete
   `mvd_l0` component binarization. MVD uses context offsets `+3`, `+4`, `+5`,
@@ -206,10 +207,11 @@ Important H.264 files:
 - `cabac/H264CabacSyntaxReader.h`: aggregate include for CABAC syntax readers;
   keep it thin.
 - `cabac/H264CabacMacroblockParser.*`: CABAC macroblock entry point. It currently
-  initializes CABAC state, collects supported syntax into
-  `H264CabacMacroblockSyntaxResult`, can append a partial P_8x8
-  `MacroblockInfo` skeleton for decoded sub-macroblock syntax, then reports
-  structured unsupported/incomplete diagnostics.
+  initializes one decoder/context set per slice, iterates P-slice macroblocks
+  in the required skip/syntax/end order, collects supported syntax into
+  `H264CabacMacroblockSyntaxResult`, and appends completed P_Skip, narrow
+  P_L0_16x16, and selected P_8x8 macroblocks. It preserves structured
+  unsupported/incomplete diagnostics at the first unimplemented syntax.
 
 Current H.264 coverage:
 
@@ -219,8 +221,11 @@ Current H.264 coverage:
 - P-slice L0 motion vectors for supported partition paths, including focused
   P_8x8/P_8x8ref0 fixtures.
 - Focused non-direct B-slice L0/L1/Bi motion vectors for 16x16/16x8/8x16.
-- Structured diagnostics for unsupported CABAC, B_Direct, B_8x8, MBAFF/FMO,
-  malformed/truncated SPS/PPS/slice data, and malformed AVCC lengths.
+- Narrow CABAC P-slice parsing verified against a deterministic x264 fixture,
+  including two consecutive P_L0_16x16 macroblocks, cross-macroblock MVD
+  context state, luma4x4 residuals, and 4:2:0 chroma DC residuals.
+- Structured diagnostics for unsupported CABAC syntax, B_Direct, B_8x8,
+  MBAFF/FMO, malformed/truncated SPS/PPS/slice data, and malformed AVCC lengths.
 
 Current H.264 limitations:
 
@@ -260,11 +265,11 @@ Current H.264 limitations:
   levels, plus incomplete block, incomplete scan index, category, and next
   unsupported stage when parsing stops. Completed blocks are written to
   `ResidualBlockInfo`; macroblock coefficient totals and neighbor coefficient
-  state are updated. Chroma DC
-  non-zero CBF remains an incomplete boundary without significant-flag parsing.
-  For
-  `coded_block_pattern_chroma == 2`, the narrow path now preserves chroma DC
-  CBF-zero state, then returns `cabac_residual_incomplete` with category
+  state are updated. Chroma DC CBF-one parsing is complete for the narrow
+  4:2:0 path, including significant/last flags and up to four signed
+  coefficients per component. For `coded_block_pattern_chroma == 2`, the
+  narrow path preserves chroma DC state, then returns
+  `cabac_residual_incomplete` with category
   `chroma_ac` and next stage `coded_block_flag`; chroma AC CBF parsing is still
   not implemented. Non-4:2:0 chroma residual and non-zero `mb_qp_delta` remain
   unsupported/incomplete at the
@@ -400,33 +405,21 @@ The deployment script writes its own release build under
 
 Recommended next H.264 direction:
 
-1. Broaden the newly wired residual-CABAC path one step at a time. Current
-   macroblock coverage is limited to P_8x8 with luma-only CBF-zero residuals,
-   luma4x4 CBF-one partial 15-bin `significant_coeff_flag` /
-   `last_significant_coeff_flag` skeleton results, inferred final scan-position
-   coefficient prefix routing with explicit reverse-scan and inferred-final
-   result flags, plus the first `coeff_abs_level_minus1` prefix bin, one
-   additional prefix bin when the first prefix bin is one, third through
-   fourteenth prefix bins when the covered prefix bins keep returning one,
-   bypass-coded UEG0 at the fourteen-one cutoff, and real
-   `coeff_abs_level_minus1` plus signed coefficient values when a covered
-   pre-UEG0 prefix terminates,
-   complete 4:2:0 chroma DC CBF-zero and CBF-one residuals with up to four
-   coefficients per component for `coded_block_pattern_chroma == 1`,
-   plus a structured chroma AC incomplete boundary for
-   `coded_block_pattern_chroma == 2`, all behind `mb_qp_delta == 0`.
-   Completed luma4x4 and chroma DC coefficients are integrated into the
-   macroblock model.
-   Keep syntax-result structs separate from final model mutation.
-2. Wire only one narrow CABAC macroblock path at a time, preserving structured
-   unsupported diagnostics for the first unimplemented syntax element.
-3. Keep CABAC modules under `h264/cabac/` and CAVLC modules under `h264/cavlc/`.
+1. Implement complete non-zero CABAC `mb_qp_delta`. Decode its context-coded
+   unary value and signed mapping, derive the first context from previous
+   macroblock delta state, update `currentQp` with the H.264 QP wrap rule, and
+   propagate both `mbQpDelta` and resulting QP into `MacroblockInfo`.
+2. Cover zero, positive, negative, larger, previous-non-zero, truncated, and
+   malformed cases in syntax-reader tests. Then advance
+   `x264_cabac_residual.h264` and lock the later macroblock address, delta, and
+   resulting QP before choosing the next syntax feature.
+3. After that real-stream boundary is known, continue one narrow macroblock
+   path at a time. The likely residual follow-up is 4:2:0 chroma AC; keep its
+   coded-block/significant/last contexts and coefficient category separate
+   from chroma DC and luma4x4.
+4. Keep CABAC modules under `h264/cabac/` and CAVLC modules under `h264/cavlc/`.
    Reuse shared slice state via `H264SliceDataContext`, but keep
    entropy-specific state and tables out of `H264MacroblockParser.cpp`.
-4. Next residual step should add a narrow 4:2:0 chroma AC path, keeping its
-   coded-block/significant/last contexts and coefficient category separate from
-   chroma DC and luma4x4. Preserve the UEG0 malformed-stream safety bound and
-   structured incomplete diagnostics for syntax outside that narrow path.
 5. Preserve structured unsupported diagnostics for paths that are not ready.
 
 Useful H.264 test areas:
