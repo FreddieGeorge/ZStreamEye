@@ -98,6 +98,13 @@ QByteArray loadFixture(const QString &name)
     return data;
 }
 
+QByteArray loadBinaryFixture(const QString &name)
+{
+    QFile file(QStringLiteral(H264_ANALYZER_TEST_FIXTURE_DIR) + QLatin1Char('/') + name);
+    require(file.open(QIODevice::ReadOnly), "open binary fixture");
+    return file.readAll();
+}
+
 const SliceInfo &firstSlice(const FrameSyntaxInfo &frame, const char *message)
 {
     require(!frame.slices.isEmpty(), message);
@@ -1390,11 +1397,37 @@ void testUnsupportedCabacFixtureReportsDiagnostic()
     require(slice.cabacInitIdc == 0, "CABAC fixture cabac_init_idc");
     require(slice.macroblocks.size() == 1, "CABAC fixture estimated macroblock count");
     require(!slice.macroblocks.first().parsed, "CABAC fixture macroblock remains estimated");
-    require(hasDiagnosticCode(slice, QStringLiteral("cabac_macroblock_syntax_incomplete"))
-                || hasDiagnosticCode(slice, QStringLiteral("cabac_mb_type_parsed")),
-            "CABAC fixture reports narrow syntax progress");
+    require(hasDiagnosticCode(slice, QStringLiteral("cabac_alignment_failed")),
+            "synthetic CABAC fixture reports invalid alignment");
     require(hasDiagnosticCode(slice, QStringLiteral("cabac_unsupported")), "CABAC fixture diagnostic");
     require(!slice.macroblockParseWarnings.isEmpty(), "CABAC fixture warning text");
+}
+
+void testRealX264CabacResidualFixture()
+{
+    const QByteArray packet = loadBinaryFixture(QStringLiteral("x264_cabac_residual.h264"));
+    require(packet.size() == 374, "x264 CABAC residual fixture byte size");
+
+    H264Parser parser;
+    const FrameSyntaxInfo frame = parser.parsePacketSyntax(packet, 0, 0, 0);
+    require(frame.slices.size() == 2, "x264 CABAC residual fixture slice count");
+
+    const SliceInfo *pSlice = nullptr;
+    for (const SliceInfo &slice : frame.slices) {
+        if (slice.sliceTypeName == QStringLiteral("P")) {
+            pSlice = &slice;
+            break;
+        }
+    }
+    require(pSlice != nullptr, "x264 CABAC residual fixture P slice");
+    require(pSlice->cabacInitIdc == 0, "x264 CABAC residual fixture cabac_init_idc");
+    require(pSlice->macroblocks.size() == 4, "x264 CABAC residual fixture macroblock count");
+    require(hasDiagnosticCode(*pSlice, QStringLiteral("cabac_mvd_incomplete")),
+            "x264 CABAC residual fixture reaches current MVD boundary");
+    require(!hasDiagnosticCode(*pSlice, QStringLiteral("cabac_alignment_failed")),
+            "x264 CABAC residual fixture alignment parsed");
+    require(!hasDiagnosticCode(*pSlice, QStringLiteral("cabac_mb_type_incomplete")),
+            "x264 CABAC residual fixture P_8x8 mb_type parsed");
 }
 
 void testTruncatedPSliceDataReportsDiagnostic()
@@ -1453,6 +1486,7 @@ int main()
     testFrameAnalysisExportSchemaFixture();
     testAudioFrameAnalysisExportSchemaFixture();
     testCavlcPResidualContinuesToMotionVectorFixture();
+    testRealX264CabacResidualFixture();
     testUnsupportedCabacFixtureReportsDiagnostic();
     testTruncatedPSliceDataReportsDiagnostic();
     testTruncatedSliceHeaderReportsDiagnostic();

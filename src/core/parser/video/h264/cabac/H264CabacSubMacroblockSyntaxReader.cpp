@@ -117,7 +117,7 @@ H264CabacSubMbTypeResult h264ReadCabacPSubMbType(BitReader &reader,
     H264CabacSubMbTypeResult result;
     result.ok = true;
     result.ctxIdx = ctxIdx;
-    if (bin == 0) {
+    if (bin != 0) {
         result.complete = true;
         result.subMbType = 0;
         return result;
@@ -156,7 +156,7 @@ H264CabacSubMbTypeResult h264ReadCabacPSubMbType(BitReader &reader,
         return result;
     }
     result.complete = true;
-    result.subMbType = bin == 0 ? 2 : 3;
+    result.subMbType = bin == 0 ? 3 : 2;
     return result;
 }
 

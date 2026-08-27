@@ -236,7 +236,7 @@ H264CabacContextModelSet initializedP8x8LumaResidualCoeffLevelContexts(int curre
     contexts.setModel(14, {0, 0});
     contexts.setModel(15, {0, 0});
     contexts.setModel(16, {0, 1});
-    contexts.setModel(21, {0, 0});
+    contexts.setModel(21, {0, 1});
     contexts.setModel(40, {0, 0});
     contexts.setModel(47, {0, 0});
     contexts.setModel(60, {0, 0});
@@ -267,7 +267,7 @@ H264CabacContextModelSet initializedP8x8LumaResidualCoeffLevelContextsWithFourth
     contexts.setModel(14, {0, 0});
     contexts.setModel(15, {0, 0});
     contexts.setModel(16, {0, 1});
-    contexts.setModel(21, {0, 0});
+    contexts.setModel(21, {0, 1});
     contexts.setModel(40, {0, 0});
     contexts.setModel(47, {0, 0});
     contexts.setModel(60, {0, 0});
@@ -298,7 +298,7 @@ H264CabacContextModelSet initializedP8x8LumaResidualCoeffLevelContextsWithFifthC
     contexts.setModel(14, {0, 0});
     contexts.setModel(15, {0, 0});
     contexts.setModel(16, {0, 1});
-    contexts.setModel(21, {0, 0});
+    contexts.setModel(21, {0, 1});
     contexts.setModel(40, {0, 0});
     contexts.setModel(47, {0, 0});
     contexts.setModel(60, {0, 0});
@@ -526,7 +526,7 @@ void testReadPSubMbTypeP8x8()
     H264SliceDataContext context(reader, slice, pps, sps);
 
     H264CabacContextModelSet contexts(22);
-    contexts.setModel(21, {0, 0});
+    contexts.setModel(21, {0, 1});
 
     const H264CabacSubMbTypeResult result = h264ReadCabacPSubMbType(reader, decoder, contexts, context);
     require(result.ok, "CABAC P sub_mb_type P_L0_8x8 result");
@@ -548,7 +548,7 @@ void testReadPSubMbTypeReportsMissingContext()
     H264SliceDataContext context(reader, slice, pps, sps);
 
     H264CabacContextModelSet contexts(22);
-    contexts.setModel(21, {0, 1});
+    contexts.setModel(21, {0, 0});
 
     const H264CabacSubMbTypeResult result = h264ReadCabacPSubMbType(reader, decoder, contexts, context);
     require(!result.ok, "CABAC P sub_mb_type missing context fails cleanly");
@@ -571,7 +571,7 @@ void testReadPSubMbTypeP8x4()
     H264SliceDataContext context(reader, slice, pps, sps);
 
     H264CabacContextModelSet contexts(24);
-    contexts.setModel(21, {0, 1});
+    contexts.setModel(21, {0, 0});
     contexts.setModel(22, {0, 0});
 
     const H264CabacSubMbTypeResult result = h264ReadCabacPSubMbType(reader, decoder, contexts, context);
@@ -594,9 +594,9 @@ void testReadPSubMbTypeP4x8()
     H264SliceDataContext context(reader, slice, pps, sps);
 
     H264CabacContextModelSet contexts(24);
-    contexts.setModel(21, {0, 1});
+    contexts.setModel(21, {0, 0});
     contexts.setModel(22, {0, 1});
-    contexts.setModel(23, {0, 0});
+    contexts.setModel(23, {0, 1});
 
     const H264CabacSubMbTypeResult result = h264ReadCabacPSubMbType(reader, decoder, contexts, context);
     require(result.ok, "CABAC P sub_mb_type P_L0_4x8 result");
@@ -618,9 +618,9 @@ void testReadPSubMbTypeP4x4()
     H264SliceDataContext context(reader, slice, pps, sps);
 
     H264CabacContextModelSet contexts(24);
-    contexts.setModel(21, {0, 1});
+    contexts.setModel(21, {0, 0});
     contexts.setModel(22, {0, 1});
-    contexts.setModel(23, {0, 1});
+    contexts.setModel(23, {0, 0});
 
     const H264CabacSubMbTypeResult result = h264ReadCabacPSubMbType(reader, decoder, contexts, context);
     require(result.ok, "CABAC P sub_mb_type P_L0_4x4 result");
@@ -642,7 +642,7 @@ void testReadFourPSubMbTypes()
     H264SliceDataContext context(reader, slice, pps, sps);
 
     H264CabacContextModelSet contexts(24);
-    contexts.setModel(21, {0, 0});
+    contexts.setModel(21, {0, 1});
     contexts.setModel(22, {0, 0});
     contexts.setModel(23, {0, 0});
 
@@ -670,7 +670,7 @@ void testReadFourPSubMbTypesReportsIndexedFailure()
     H264SliceDataContext context(reader, slice, pps, sps);
 
     H264CabacContextModelSet contexts(22);
-    contexts.setModel(21, {0, 1});
+    contexts.setModel(21, {0, 0});
 
     const H264CabacSubMbTypesResult result =
         h264ReadCabacPSubMbTypes(reader, decoder, contexts, context, 4);
@@ -896,7 +896,7 @@ void testReadCabacMacroblockSyntaxP8x8RefAbsent()
     contexts.setModel(14, {0, 0});
     contexts.setModel(15, {0, 0});
     contexts.setModel(16, {0, 1});
-    contexts.setModel(21, {0, 0});
+    contexts.setModel(21, {0, 1});
     contexts.setModel(40, {0, 0});
     contexts.setModel(47, {0, 0});
     contexts.setModel(60, {0, 0});
@@ -936,7 +936,7 @@ void testReadCabacMacroblockSyntaxP8x8RefZero()
     contexts.setModel(14, {0, 0});
     contexts.setModel(15, {0, 0});
     contexts.setModel(16, {0, 1});
-    contexts.setModel(21, {0, 0});
+    contexts.setModel(21, {0, 1});
     contexts.setModel(40, {0, 0});
     contexts.setModel(47, {0, 0});
     contexts.setModel(60, {0, 0});
@@ -972,7 +972,7 @@ void testReadCabacMacroblockSyntaxP8x8ChromaAcResidualIncomplete()
     contexts.setModel(14, {0, 0});
     contexts.setModel(15, {0, 0});
     contexts.setModel(16, {0, 1});
-    contexts.setModel(21, {0, 0});
+    contexts.setModel(21, {0, 1});
     contexts.setModel(40, {0, 0});
     contexts.setModel(47, {0, 0});
     contexts.setModel(60, {0, 0});
@@ -1025,7 +1025,7 @@ void testReadCabacMacroblockSyntaxP8x8SingleLumaResidualCbfZero()
     contexts.setModel(14, {0, 0});
     contexts.setModel(15, {0, 0});
     contexts.setModel(16, {0, 1});
-    contexts.setModel(21, {0, 0});
+    contexts.setModel(21, {0, 1});
     contexts.setModel(40, {0, 0});
     contexts.setModel(47, {0, 0});
     contexts.setModel(60, {0, 0});
@@ -1074,7 +1074,7 @@ void testReadCabacMacroblockSyntaxP8x8MultiLumaResidualCbfZero()
     contexts.setModel(14, {0, 0});
     contexts.setModel(15, {0, 0});
     contexts.setModel(16, {0, 1});
-    contexts.setModel(21, {0, 0});
+    contexts.setModel(21, {0, 1});
     contexts.setModel(40, {0, 0});
     contexts.setModel(47, {0, 0});
     contexts.setModel(60, {0, 0});
@@ -1116,7 +1116,7 @@ void testReadCabacMacroblockSyntaxP8x8ChromaDcResidualCbfZero()
     contexts.setModel(14, {0, 0});
     contexts.setModel(15, {0, 0});
     contexts.setModel(16, {0, 1});
-    contexts.setModel(21, {0, 0});
+    contexts.setModel(21, {0, 1});
     contexts.setModel(40, {0, 0});
     contexts.setModel(47, {0, 0});
     contexts.setModel(60, {0, 0});
@@ -1167,7 +1167,7 @@ void testReadCabacMacroblockSyntaxP8x8ChromaDcResidualCbfNonZero()
     contexts.setModel(14, {0, 0});
     contexts.setModel(15, {0, 0});
     contexts.setModel(16, {0, 1});
-    contexts.setModel(21, {0, 0});
+    contexts.setModel(21, {0, 1});
     contexts.setModel(40, {0, 0});
     contexts.setModel(47, {0, 0});
     contexts.setModel(60, {0, 0});
@@ -1219,7 +1219,7 @@ void testReadCabacMacroblockSyntaxP8x8ResidualCbfNonZeroIncomplete()
     contexts.setModel(14, {0, 0});
     contexts.setModel(15, {0, 0});
     contexts.setModel(16, {0, 1});
-    contexts.setModel(21, {0, 0});
+    contexts.setModel(21, {0, 1});
     contexts.setModel(40, {0, 0});
     contexts.setModel(47, {0, 0});
     contexts.setModel(60, {0, 0});
@@ -1306,7 +1306,7 @@ void testReadCabacMacroblockSyntaxP8x8ResidualSignificantOneIncomplete()
     contexts.setModel(14, {0, 0});
     contexts.setModel(15, {0, 0});
     contexts.setModel(16, {0, 1});
-    contexts.setModel(21, {0, 0});
+    contexts.setModel(21, {0, 1});
     contexts.setModel(40, {0, 0});
     contexts.setModel(47, {0, 0});
     contexts.setModel(60, {0, 0});
@@ -2216,7 +2216,7 @@ void testReadCabacMacroblockSyntaxP8x8SmallNonZeroMvd()
     contexts.setModel(14, {0, 0});
     contexts.setModel(15, {0, 0});
     contexts.setModel(16, {0, 1});
-    contexts.setModel(21, {0, 0});
+    contexts.setModel(21, {0, 1});
     contexts.setModel(40, {0, 1});
     contexts.setModel(43, {0, 0});
     contexts.setModel(47, {0, 0});
@@ -2250,7 +2250,7 @@ void testReadCabacMacroblockSyntaxP8x8NonZeroMvdIncomplete()
     contexts.setModel(14, {0, 0});
     contexts.setModel(15, {0, 0});
     contexts.setModel(16, {0, 1});
-    contexts.setModel(21, {0, 0});
+    contexts.setModel(21, {0, 1});
     contexts.setModel(40, {0, 1});
     contexts.setModel(43, {0, 1});
     contexts.setModel(44, {0, 1});

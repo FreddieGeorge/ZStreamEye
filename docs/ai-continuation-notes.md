@@ -503,3 +503,13 @@ Before playback/seek changes, read `MainWindow::handleFrameReady`,
 `MainWindow::showFrameFromCache`, `MainWindow::seekToFrame`, and
 `DecodeSession::start`, `DecodeWorker::decodeFileFromCheckpoint`, and
 `DecodeLoop::run`.
+
+# Real CABAC residual fixture
+
+`tests/fixtures/x264_cabac_residual.h264` is the first deterministic real-encoder
+CABAC residual fixture. It exposed two integration gaps that synthetic context
+tests did not cover: CABAC alignment was not consumed before decoder
+initialization, and the P `sub_mb_type` bin directions were reversed. The
+fixture now reaches the explicit `mvd_l0 > 3` boundary; extending that MVD
+binarization is the next prerequisite before its non-zero luma coefficients can
+be asserted through the full parser model.

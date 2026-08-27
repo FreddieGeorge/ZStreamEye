@@ -16,6 +16,7 @@ They are intentionally minimal parser fixtures, not visual-quality video clips:
 - `cavlc_p_motion_vector.hex`: CAVLC P-slice with a non-zero L0 motion vector delta.
 - `cavlc_p_residual_then_motion_vector.hex`: CAVLC P-slice that verifies residual parsing can continue into a later motion-vector macroblock.
 - `unsupported_cabac_p.hex`: CABAC P-slice used to assert graceful unsupported diagnostics.
+- `x264_cabac_residual.h264`: deterministic FFmpeg 8.1.1/libx264 Annex B stream with a CABAC P frame, P_8x8 analysis, and non-zero luma residual. The parser regression verifies valid CABAC alignment and P sub-macroblock decoding before the current `mvd_l0 > 3` boundary.
 - `truncated_sps.hex`: SPS NALU cut off before required fields are complete.
 - `truncated_pps.hex`: PPS NALU cut off before required fields are complete.
 - `truncated_slice_header.hex`: P-slice NALU cut off before the slice header is complete.
@@ -25,3 +26,12 @@ Additional H.264 parser tests build tiny packets in memory with `BitWriter`
 when that is clearer than storing hex. These currently cover CAVLC
 P_8x8/P_8x8ref0 sub-macroblock L0 motion vectors and B-slice unsupported
 diagnostics.
+
+Regenerate the real CABAC fixture with:
+
+```powershell
+./tests/fixtures/generate_x264_cabac_residual.ps1 -FfmpegPath C:\msys64\ucrt64\bin\ffmpeg.exe
+```
+
+The script fixes the encoder settings and verifies SHA-256
+`ffcc0f2b72b6b39427652246c2d40d5d1e93b885c9cdbe2e073bac33363ff367`.

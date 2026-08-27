@@ -456,6 +456,13 @@ bool h264AppendCabacMacroblockSyntaxSkeleton(H264SliceDataContext &context,
 void h264AppendUnsupportedCabacMacroblocks(H264SliceDataContext &context)
 {
     const H264CabacUnsupportedResult cabac = h264CabacUnsupportedResult();
+    if (!H264CabacDecoder::consumeAlignmentBits(context.reader)) {
+        context.appendDiagnostic(
+            QStringLiteral("cabac_alignment_failed"),
+            QStringLiteral("CABAC alignment bits before slice_data are invalid or truncated."));
+        context.appendEstimatedRemainder(cabac.code, cabac.message);
+        return;
+    }
     H264CabacDecoder decoder;
     if (!decoder.initialize(context.reader)) {
         context.appendDiagnostic(
