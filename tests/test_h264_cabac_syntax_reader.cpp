@@ -797,6 +797,7 @@ void testReadMvdComponentAbs3Positive()
     contexts.setModel(41, {0, 1});
     contexts.setModel(43, {0, 1});
     contexts.setModel(44, {1, 0});
+    contexts.setModel(45, {0, 0});
 
     const H264CabacMvdResult result = h264ReadCabacMvdL0Component(reader, decoder, contexts, 0, 1);
     require(result.ok, "CABAC mvd_l0 component abs3 positive result");
@@ -805,24 +806,96 @@ void testReadMvdComponentAbs3Positive()
     require(result.ctxIdx == 41, "CABAC mvd_l0 abs3 positive derived context");
 }
 
-void testReadMvdComponentGreaterThanThreeIncomplete()
+void testReadMvdComponentAbs4Positive()
 {
-    BitReader reader(QByteArray::fromHex("0000"));
+    BitReader reader(QByteArray::fromHex("000000"));
     H264CabacDecoder decoder = initializedDecoder(reader);
 
     H264CabacContextModelSet contexts(60);
     contexts.setModel(47, {0, 1});
     contexts.setModel(50, {0, 1});
     contexts.setModel(51, {0, 1});
+    contexts.setModel(52, {0, 1});
+    contexts.setModel(53, {0, 0});
 
     const H264CabacMvdResult result = h264ReadCabacMvdL0Component(reader, decoder, contexts, 1);
-    require(result.ok, "CABAC mvd_l0 component greater-than-three prefix result");
-    require(!result.complete, "CABAC mvd_l0 component greater-than-three incomplete");
+    require(result.ok, "CABAC mvd_l0 component abs4 positive result");
+    require(result.complete, "CABAC mvd_l0 component abs4 positive complete");
+    require(result.value == 4, "CABAC mvd_l0 component abs4 positive value");
     require(result.ctxIdx == 47, "CABAC mvd_l0 y context");
-    require(result.diagnosticCode == QStringLiteral("cabac_mvd_incomplete"),
-            "CABAC mvd_l0 component greater-than-three diagnostic");
-    require(result.diagnosticMessage.contains(QStringLiteral("greater than three")),
-            "CABAC mvd_l0 component greater-than-three message");
+}
+
+void testReadMvdComponentAbs8Positive()
+{
+    BitReader reader(QByteArray::fromHex("f60000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    H264CabacContextModelSet contexts(60);
+    contexts.setModel(40, {63, 1});
+    contexts.setModel(43, {63, 1});
+    contexts.setModel(44, {63, 1});
+    contexts.setModel(45, {63, 1});
+    contexts.setModel(46, {63, 1});
+
+    const H264CabacMvdResult result = h264ReadCabacMvdL0Component(reader, decoder, contexts, 0);
+    require(result.ok, "CABAC mvd_l0 component abs8 positive result");
+    require(result.complete, "CABAC mvd_l0 component abs8 positive complete");
+    require(result.value == 8, "CABAC mvd_l0 component abs8 positive value");
+}
+
+void testReadMvdComponentAbs9Positive()
+{
+    BitReader reader(QByteArray::fromHex("000000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    H264CabacContextModelSet contexts(60);
+    contexts.setModel(40, {63, 1});
+    contexts.setModel(43, {63, 1});
+    contexts.setModel(44, {63, 1});
+    contexts.setModel(45, {63, 1});
+    contexts.setModel(46, {63, 1});
+
+    const H264CabacMvdResult result = h264ReadCabacMvdL0Component(reader, decoder, contexts, 0);
+    require(result.ok, "CABAC mvd_l0 component abs9 positive result");
+    require(result.complete, "CABAC mvd_l0 component abs9 positive complete");
+    require(result.value == 9, "CABAC mvd_l0 component abs9 positive value");
+}
+
+void testReadMvdComponentUeg3Negative()
+{
+    BitReader reader(QByteArray::fromHex("550000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    H264CabacContextModelSet contexts(60);
+    contexts.setModel(40, {63, 1});
+    contexts.setModel(43, {63, 1});
+    contexts.setModel(44, {63, 1});
+    contexts.setModel(45, {63, 1});
+    contexts.setModel(46, {63, 1});
+
+    const H264CabacMvdResult result = h264ReadCabacMvdL0Component(reader, decoder, contexts, 0);
+    require(result.ok, "CABAC mvd_l0 component UEG3 negative result");
+    require(result.complete, "CABAC mvd_l0 component UEG3 negative complete");
+    require(result.value == -14, "CABAC mvd_l0 component UEG3 negative value");
+}
+
+void testReadMvdComponentUeg3Truncated()
+{
+    BitReader reader(QByteArray::fromHex("b880"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    H264CabacContextModelSet contexts(60);
+    contexts.setModel(40, {63, 1});
+    contexts.setModel(43, {63, 1});
+    contexts.setModel(44, {63, 1});
+    contexts.setModel(45, {63, 1});
+    contexts.setModel(46, {63, 1});
+
+    const H264CabacMvdResult result = h264ReadCabacMvdL0Component(reader, decoder, contexts, 0);
+    require(!result.ok, "CABAC mvd_l0 truncated UEG3 result");
+    require(!result.complete, "CABAC mvd_l0 truncated UEG3 incomplete");
+    require(result.diagnosticCode == QStringLiteral("cabac_bin_decode_failed"),
+            "CABAC mvd_l0 truncated UEG3 diagnostic");
 }
 
 void testReadPSubMbMvdZero8x8()
@@ -2231,37 +2304,6 @@ void testReadCabacMacroblockSyntaxP8x8SmallNonZeroMvd()
     require(result.mvdL0.size() == 4, "CABAC macroblock syntax P_8x8 small non-zero mvd pair count");
     require(result.mvdL0[0].x == 1 && result.mvdL0[0].y == 0,
             "CABAC macroblock syntax P_8x8 small non-zero first mvd pair");
-}
-
-void testReadCabacMacroblockSyntaxP8x8NonZeroMvdIncomplete()
-{
-    BitReader reader(QByteArray::fromHex("000000000000"));
-    H264CabacDecoder decoder = initializedDecoder(reader);
-
-    SliceInfo slice;
-    PpsInfo pps;
-    SpsInfo sps;
-    initializeBasicSlice(slice, 0, 0);
-    initializeBasicSps(sps);
-    slice.numRefIdxL0ActiveMinus1 = 0;
-    H264SliceDataContext context(reader, slice, pps, sps);
-
-    H264CabacContextModelSet contexts(60);
-    contexts.setModel(14, {0, 0});
-    contexts.setModel(15, {0, 0});
-    contexts.setModel(16, {0, 1});
-    contexts.setModel(21, {0, 1});
-    contexts.setModel(40, {0, 1});
-    contexts.setModel(43, {0, 1});
-    contexts.setModel(44, {0, 1});
-    contexts.setModel(47, {0, 0});
-
-    const H264CabacMacroblockSyntaxResult result =
-        h264ReadCabacMacroblockSyntax(context, decoder, contexts);
-    require(result.ok, "CABAC macroblock syntax P_8x8 non-zero mvd prefix result");
-    require(!result.complete, "CABAC macroblock syntax P_8x8 non-zero mvd incomplete");
-    require(result.diagnosticCode == QStringLiteral("cabac_mvd_incomplete"),
-            "CABAC macroblock syntax P_8x8 non-zero mvd diagnostic");
 }
 
 void testReadCodedBlockPatternZeroMonochrome()
@@ -4599,7 +4641,11 @@ int main()
     testReadMvdComponentZero();
     testReadMvdComponentAbs2Positive();
     testReadMvdComponentAbs3Positive();
-    testReadMvdComponentGreaterThanThreeIncomplete();
+    testReadMvdComponentAbs4Positive();
+    testReadMvdComponentAbs8Positive();
+    testReadMvdComponentAbs9Positive();
+    testReadMvdComponentUeg3Negative();
+    testReadMvdComponentUeg3Truncated();
     testReadPSubMbMvdZero8x8();
     testReadPSubMbMvdAbs2_8x8();
     testReadPSubMbMvdZero4x4();
@@ -4611,7 +4657,6 @@ int main()
     testReadCabacMacroblockSyntaxP8x8ChromaDcResidualCbfZero();
     testReadCabacMacroblockSyntaxP8x8ChromaDcResidualCbfNonZero();
     testReadCabacMacroblockSyntaxP8x8SmallNonZeroMvd();
-    testReadCabacMacroblockSyntaxP8x8NonZeroMvdIncomplete();
     testReadCodedBlockPatternZeroMonochrome();
     testReadCodedBlockPatternZeroChroma();
     testReadCodedBlockPatternNonZeroLumaIncomplete();

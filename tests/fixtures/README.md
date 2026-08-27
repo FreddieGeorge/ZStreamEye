@@ -16,7 +16,7 @@ They are intentionally minimal parser fixtures, not visual-quality video clips:
 - `cavlc_p_motion_vector.hex`: CAVLC P-slice with a non-zero L0 motion vector delta.
 - `cavlc_p_residual_then_motion_vector.hex`: CAVLC P-slice that verifies residual parsing can continue into a later motion-vector macroblock.
 - `unsupported_cabac_p.hex`: CABAC P-slice used to assert graceful unsupported diagnostics.
-- `x264_cabac_residual.h264`: deterministic FFmpeg 8.1.1/libx264 Annex B stream with a CABAC P frame, P_8x8 analysis, and non-zero luma residual. The parser regression verifies valid CABAC alignment and P sub-macroblock decoding before the current `mvd_l0 > 3` boundary.
+- `x264_cabac_residual.h264`: deterministic FFmpeg 8.1.1/libx264 Annex B stream with a CABAC P frame, P_8x8 encoder analysis, and non-zero luma residual. The parser regression verifies valid CABAC alignment, correct per-macroblock `mb_skip_flag` ordering, two consecutive P_L0_16x16 macroblocks, cross-macroblock MVD context derivation, their motion vectors, and stable non-zero luma4x4 coefficients. The current boundary is a later macroblock's non-zero `mb_qp_delta`.
 - `truncated_sps.hex`: SPS NALU cut off before required fields are complete.
 - `truncated_pps.hex`: PPS NALU cut off before required fields are complete.
 - `truncated_slice_header.hex`: P-slice NALU cut off before the slice header is complete.

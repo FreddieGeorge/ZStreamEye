@@ -13,6 +13,13 @@ struct H264MacroblockCoeffState
     std::array<std::array<int, 4>, 2> chroma {};
 };
 
+struct H264MacroblockMvdState
+{
+    bool valid = false;
+    int x = 0;
+    int y = 0;
+};
+
 enum class H264MacroblockParseAction
 {
     Continue,
@@ -36,6 +43,7 @@ struct H264SliceDataContext
         , chromaArrayType(sps.chromaFormatIdc == 0 ? 0 : sps.chromaFormatIdc)
         , mvStatesL0(totalMacroblocks)
         , mvStatesL1(totalMacroblocks)
+        , mvdStatesL0(totalMacroblocks)
         , coeffStates(totalMacroblocks)
     {
     }
@@ -127,5 +135,6 @@ struct H264SliceDataContext
     const int chromaArrayType = 1;
     QVector<H264MacroblockMvState> mvStatesL0;
     QVector<H264MacroblockMvState> mvStatesL1;
+    QVector<H264MacroblockMvdState> mvdStatesL0;
     QVector<H264MacroblockCoeffState> coeffStates;
 };

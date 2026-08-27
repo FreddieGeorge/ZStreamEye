@@ -106,10 +106,11 @@ Important H.264 files:
   returns incomplete. It also has a narrow `mb_qp_delta == 0` reader for future
   residual-bearing paths; non-zero `mb_qp_delta` returns incomplete.
 - `cabac/H264CabacSubMacroblockSyntaxReader.*`: focused P sub-macroblock
-  readers for `sub_mb_type`, narrow `ref_idx_l0 == 0`, and narrow
-  `mvd_l0` scaffolding. MVD now covers zero and small non-zero components
-  (`abs(mvd_l0) <= 3` with bypass sign); larger absolute values still return
-  incomplete.
+  readers for `sub_mb_type`, narrow `ref_idx_l0 == 0`, and complete
+  `mvd_l0` component binarization. MVD uses context offsets `+3`, `+4`, `+5`,
+  then saturated `+6` through absolute value 8; absolute values from 9 onward
+  decode the order-3 bypass Exp-Golomb suffix and bypass sign. UEG3 growth and
+  integer reconstruction are bounded for malformed-stream safety.
 - `cabac/H264CabacResidualSyntaxReader.*`: focused residual CABAC syntax
   skeleton. It currently reads luma 4x4 `coded_block_flag` using ctxIdx 85 for
   luma 8x8 groups selected by the luma `coded_block_pattern_luma` bits, and
@@ -223,7 +224,7 @@ Current H.264 coverage:
 
 Current H.264 limitations:
 
-- CABAC macroblock model parsing is not implemented. Groundwork includes
+- CABAC macroblock model parsing remains intentionally narrow. Groundwork includes
   `cabac_init_idc` on `SliceInfo`, `H264SliceDataContext`, a context-based
   CABAC unsupported entry point, `cabac/H264CabacContextModel.*`, and
   `cabac/H264CabacDecoder.*` bin-decoding primitives. CABAC context-model
@@ -235,9 +236,12 @@ Current H.264 limitations:
   fourteenth luma4x4 `coeff_abs_level_minus1` prefix bins, chroma DC
   significant/last contexts 149-151 and 181-183, and chroma DC level contexts
   257-266.
-  The CABAC macroblock entry point has a syntax-result boundary for supported
-  I/P `mb_type` and narrow P_8x8
-  `sub_mb_type`/`ref_idx_l0 == 0`/small `mvd_l0` scaffolding. The P_8x8 path
+  The CABAC P-slice entry point now iterates macroblocks with the required
+  `mb_skip_flag` before each non-skipped macroblock and `end_of_slice_flag`
+  after every completed macroblock, while reusing one decoder and context set.
+  It supports P_Skip plus narrow P_L0_16x16 and P_8x8
+  `ref_idx_l0 == 0`/complete `mvd_l0` syntax. P_L0_16x16 keeps explicit
+  cross-macroblock MVD state for the first-bin ctxIdxInc derivation. The inter path
   now reads narrow `coded_block_pattern` after MVD syntax. It appends a parsed
   macroblock when CBP is zero, and also for one deliberately narrow CBP-nonzero
   case: luma-only CBP with one or more luma CBP bits and selected luma4x4
@@ -262,8 +266,8 @@ Current H.264 limitations:
   `coded_block_pattern_chroma == 2`, the narrow path now preserves chroma DC
   CBF-zero state, then returns `cabac_residual_incomplete` with category
   `chroma_ac` and next stage `coded_block_flag`; chroma AC CBF parsing is still
-  not implemented. Non-4:2:0 chroma residual, MVD absolute values greater than
-  three and non-zero `mb_qp_delta` remain unsupported/incomplete at the
+  not implemented. Non-4:2:0 chroma residual and non-zero `mb_qp_delta` remain
+  unsupported/incomplete at the
   macroblock entry point. For inter CBP-zero
   macroblocks, `mb_qp_delta` is not present and is deliberately not consumed.
 - CAVLC residual summaries are focused analysis data, not full inverse-scan,
@@ -510,6 +514,9 @@ Before playback/seek changes, read `MainWindow::handleFrameReady`,
 CABAC residual fixture. It exposed two integration gaps that synthetic context
 tests did not cover: CABAC alignment was not consumed before decoder
 initialization, and the P `sub_mb_type` bin directions were reversed. The
-fixture now reaches the explicit `mvd_l0 > 3` boundary; extending that MVD
-binarization is the next prerequisite before its non-zero luma coefficients can
-be asserted through the full parser model.
+fixture now follows the correct P-slice ordering and completes two consecutive
+P_L0_16x16 macroblocks. It preserves cross-macroblock MVD context state and
+asserts stable non-zero luma4x4 coefficients: the first macroblock has luma CBP
+15 and 38 coefficients, and the second has luma CBP 12 and 21 coefficients.
+Parsing then reaches the next explicit boundary, a later macroblock with
+non-zero `mb_qp_delta`.

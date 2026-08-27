@@ -1422,12 +1422,36 @@ void testRealX264CabacResidualFixture()
     require(pSlice != nullptr, "x264 CABAC residual fixture P slice");
     require(pSlice->cabacInitIdc == 0, "x264 CABAC residual fixture cabac_init_idc");
     require(pSlice->macroblocks.size() == 4, "x264 CABAC residual fixture macroblock count");
-    require(hasDiagnosticCode(*pSlice, QStringLiteral("cabac_mvd_incomplete")),
-            "x264 CABAC residual fixture reaches current MVD boundary");
+    const MacroblockInfo &firstMacroblock = pSlice->macroblocks[0];
+    const MacroblockInfo &secondMacroblock = pSlice->macroblocks[1];
+    require(firstMacroblock.parsed && secondMacroblock.parsed,
+            "x264 CABAC residual fixture first two macroblocks parsed");
+    require(firstMacroblock.mbType == QStringLiteral("P_L0_16x16")
+                && secondMacroblock.mbType == QStringLiteral("P_L0_16x16"),
+            "x264 CABAC residual fixture P_16x16 macroblock types");
+    require(firstMacroblock.motionVectors.size() == 1
+                && firstMacroblock.motionVectors[0].mvXQuarterPel == 0
+                && firstMacroblock.motionVectors[0].mvYQuarterPel == -4,
+            "x264 CABAC residual fixture first motion vector");
+    require(firstMacroblock.codedBlockPatternLuma == 15
+                && firstMacroblock.residualCoefficientCount == 38,
+            "x264 CABAC residual fixture first luma residual summary");
+    require(secondMacroblock.codedBlockPatternLuma == 12
+                && secondMacroblock.codedBlockPatternChroma == 0
+                && secondMacroblock.residualCoefficientCount == 21,
+            "x264 CABAC residual fixture second luma residual summary");
+    require(firstMacroblock.residualBlocks[0].blockIndex == 0
+                && firstMacroblock.residualBlocks[0].coefficients[0].scanIndex == 15
+                && firstMacroblock.residualBlocks[0].coefficients[0].level == -1,
+            "x264 CABAC residual fixture stable first coefficient");
+    require(hasDiagnosticCode(*pSlice, QStringLiteral("cabac_mb_qp_delta_incomplete")),
+            "x264 CABAC residual fixture reaches non-zero mb_qp_delta boundary");
+    require(!hasDiagnosticCode(*pSlice, QStringLiteral("cabac_mvd_incomplete")),
+            "x264 CABAC residual fixture completes MVD syntax");
     require(!hasDiagnosticCode(*pSlice, QStringLiteral("cabac_alignment_failed")),
             "x264 CABAC residual fixture alignment parsed");
     require(!hasDiagnosticCode(*pSlice, QStringLiteral("cabac_mb_type_incomplete")),
-            "x264 CABAC residual fixture P_8x8 mb_type parsed");
+            "x264 CABAC residual fixture P mb_type parsed");
 }
 
 void testTruncatedPSliceDataReportsDiagnostic()

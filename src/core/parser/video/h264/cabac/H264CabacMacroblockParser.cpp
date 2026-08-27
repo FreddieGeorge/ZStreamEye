@@ -83,7 +83,29 @@ int h264CabacPSubMbPartitionCount(int subMbType)
     }
 }
 
-void appendCabacP8x8ZeroMvdMotionVectors(H264SliceDataContext &context,
+int cabacMacroblockMvdCtxIdxInc(const H264SliceDataContext &context, int component)
+{
+    const int width = std::max(1, context.slice.picWidthInMbs);
+    const int address = context.currentAddress;
+    const int mbX = address % width;
+    const int leftAddress = mbX > 0 ? address - 1 : -1;
+    const int topAddress = address >= width ? address - width : -1;
+    auto componentAbs = [&](int neighborAddress) {
+        if (neighborAddress < 0 || neighborAddress >= context.mvdStatesL0.size()
+            || !context.mvdStatesL0.at(neighborAddress).valid) {
+            return 0;
+        }
+        const H264MacroblockMvdState &state = context.mvdStatesL0.at(neighborAddress);
+        return std::abs(component == 0 ? state.x : state.y);
+    };
+    const int neighborAbsMvd = componentAbs(leftAddress) + componentAbs(topAddress);
+    if (neighborAbsMvd < 3) {
+        return 0;
+    }
+    return neighborAbsMvd <= 32 ? 1 : 2;
+}
+
+void appendCabacPMotionVectors(H264SliceDataContext &context,
                                          MacroblockInfo &mb,
                                          const H264CabacMacroblockSyntaxResult &syntax)
 {
@@ -97,6 +119,9 @@ void appendCabacP8x8ZeroMvdMotionVectors(H264SliceDataContext &context,
                 h264PredictMv(context.mvStatesL0, context.slice.picWidthInMbs, mb.address, refIdx);
             h264AddMotionVector(mb, 0, refIdx, predicted.mvX + mvd.x, predicted.mvY + mvd.y);
         }
+    }
+    if (!syntax.mvdL0.isEmpty() && mb.address < context.mvdStatesL0.size()) {
+        context.mvdStatesL0[mb.address] = {true, syntax.mvdL0.first().x, syntax.mvdL0.first().y};
     }
     h264SetMvState(mb, context.mvStatesL0, context.mvStatesL1);
 }
@@ -157,6 +182,29 @@ void appendCabacResidualBlocks(MacroblockInfo &mb,
     }
 }
 
+void appendCabacPSkipMacroblock(H264SliceDataContext &context)
+{
+    MacroblockInfo mb;
+    mb.address = context.currentAddress;
+    mb.mbType = QStringLiteral("P_Skip");
+    mb.predictionMode = QStringLiteral("Pred_L0");
+    mb.codedBlockPattern = 0;
+    mb.codedBlockPatternLuma = 0;
+    mb.codedBlockPatternChroma = 0;
+    mb.qp = context.currentQp;
+    mb.skipped = true;
+    mb.parsed = true;
+    const H264MacroblockMvState predicted =
+        h264PredictMv(context.mvStatesL0, context.slice.picWidthInMbs, mb.address, 0);
+    h264AddMotionVector(mb, 0, 0, predicted.mvX, predicted.mvY);
+    h264SetMvState(mb, context.mvStatesL0, context.mvStatesL1);
+    mb.note = QStringLiteral("CABAC P_Skip macroblock parsed; motion vector uses neighboring median prediction.");
+    context.mvdStatesL0[mb.address] = {true, 0, 0};
+    context.coeffStates[mb.address] = H264MacroblockCoeffState {};
+    context.slice.macroblocks.append(mb);
+    ++context.currentAddress;
+}
+
 }
 
 H264CabacUnsupportedResult h264CabacUnsupportedResult()
@@ -194,9 +242,16 @@ H264CabacMacroblockSyntaxResult h264ReadCabacMacroblockSyntax(H264SliceDataConte
         return result;
     }
 
-    if (context.isPSlice && mbType.needsSubMacroblockTypes) {
-        const H264CabacSubMbTypesResult subMbTypes =
-            h264ReadCabacPSubMbTypes(context.reader, decoder, contexts, context, 4);
+    if (context.isPSlice && mbType.complete
+        && (mbType.needsSubMacroblockTypes || mbType.mbType == 0)) {
+        H264CabacSubMbTypesResult subMbTypes;
+        if (mbType.needsSubMacroblockTypes) {
+            subMbTypes = h264ReadCabacPSubMbTypes(context.reader, decoder, contexts, context, 4);
+        } else {
+            subMbTypes.ok = true;
+            subMbTypes.complete = true;
+            subMbTypes.subMbTypes = {0};
+        }
         if (!subMbTypes.ok) {
             result.ok = false;
             copyDiagnostic(result, subMbTypes.diagnosticCode, subMbTypes.diagnosticMessage);
@@ -217,8 +272,26 @@ H264CabacMacroblockSyntaxResult h264ReadCabacMacroblockSyntax(H264SliceDataConte
                 copyDiagnostic(result, refIdx.diagnosticCode, refIdx.diagnosticMessage);
                 return result;
             }
-            const H264CabacMvdListResult mvd =
-                h264ReadCabacPSubMbMvdL0(context.reader, decoder, contexts, subMbTypes.subMbTypes);
+            H264CabacMvdListResult mvd;
+            if (mbType.mbType == 0) {
+                const H264CabacMvdResult x = h264ReadCabacMvdL0Component(
+                    context.reader, decoder, contexts, 0, cabacMacroblockMvdCtxIdxInc(context, 0));
+                const H264CabacMvdResult y = x.ok && x.complete
+                    ? h264ReadCabacMvdL0Component(
+                          context.reader, decoder, contexts, 1, cabacMacroblockMvdCtxIdxInc(context, 1))
+                    : H264CabacMvdResult {};
+                mvd.ok = x.ok && y.ok;
+                mvd.complete = x.complete && y.complete;
+                if (mvd.ok && mvd.complete) {
+                    mvd.mvd.append({x.value, y.value});
+                } else {
+                    mvd.diagnosticCode = !x.ok || !x.complete ? x.diagnosticCode : y.diagnosticCode;
+                    mvd.diagnosticMessage = !x.ok || !x.complete ? x.diagnosticMessage : y.diagnosticMessage;
+                }
+            } else {
+                mvd = h264ReadCabacPSubMbMvdL0(
+                    context.reader, decoder, contexts, subMbTypes.subMbTypes);
+            }
             if (!mvd.ok) {
                 result.ok = false;
                 copyDiagnostic(result, mvd.diagnosticCode, mvd.diagnosticMessage);
@@ -338,6 +411,7 @@ H264CabacMacroblockSyntaxResult h264ReadCabacMacroblockSyntax(H264SliceDataConte
                         return result;
                     }
                 }
+                result.parsedResidual = true;
                 if (cbp.codedBlockPatternChroma != 0) {
                     const H264CabacResidualChromaDcResult residual =
                         h264ReadCabacResidualChromaDcCodedBlockFlagsZero(
@@ -382,7 +456,6 @@ H264CabacMacroblockSyntaxResult h264ReadCabacMacroblockSyntax(H264SliceDataConte
                         return result;
                     }
                 }
-                result.parsedResidual = true;
                 result.parsedResidualCodedBlockFlagsZero =
                     std::all_of(result.residualCodedBlockFlags.cbegin(),
                                 result.residualCodedBlockFlags.cend(),
@@ -416,7 +489,8 @@ H264CabacMacroblockSyntaxResult h264ReadCabacMacroblockSyntax(H264SliceDataConte
 bool h264AppendCabacMacroblockSyntaxSkeleton(H264SliceDataContext &context,
                                              const H264CabacMacroblockSyntaxResult &syntax)
 {
-    if (!syntax.parsedSubMacroblockSyntax || !syntax.parsedCodedBlockPattern || syntax.mbType != 3 || !context.isPSlice) {
+    if (!syntax.parsedSubMacroblockSyntax || !syntax.parsedCodedBlockPattern
+        || (syntax.mbType != 0 && syntax.mbType != 3) || !context.isPSlice) {
         return false;
     }
     if (!syntax.parsedCodedBlockPatternZero && !syntax.parsedResidual
@@ -427,7 +501,9 @@ bool h264AppendCabacMacroblockSyntaxSkeleton(H264SliceDataContext &context,
     MacroblockInfo mb;
     mb.address = context.currentAddress;
     mb.mbType = h264CabacMbTypeName(context, syntax.mbType);
-    mb.predictionMode = QStringLiteral("Pred_L0 sub-macroblock");
+    mb.predictionMode = syntax.mbType == 0
+        ? QStringLiteral("Pred_L0")
+        : QStringLiteral("Pred_L0 sub-macroblock");
     mb.codedBlockPattern = syntax.codedBlockPattern;
     mb.codedBlockPatternLuma = syntax.codedBlockPatternLuma;
     mb.codedBlockPatternChroma = syntax.codedBlockPatternChroma;
@@ -435,7 +511,7 @@ bool h264AppendCabacMacroblockSyntaxSkeleton(H264SliceDataContext &context,
     mb.mbQpDelta = syntax.mbQpDelta;
     mb.residualParsed = true;
     mb.parsed = true;
-    appendCabacP8x8ZeroMvdMotionVectors(context, mb, syntax);
+    appendCabacPMotionVectors(context, mb, syntax);
 
     H264MacroblockCoeffState coeffState;
     if (syntax.parsedResidual || syntax.parsedResidualCodedBlockFlagsZero) {
@@ -478,6 +554,78 @@ void h264AppendUnsupportedCabacMacroblocks(H264SliceDataContext &context)
             context.slice.cabacInitIdc,
             context.currentQp,
             266);
+
+    if (context.isPSlice) {
+        bool endOfSlice = false;
+        while (!endOfSlice && context.currentAddress < context.totalMacroblocks) {
+            const H264CabacSyntaxResult skip =
+                h264ReadCabacMbSkipFlag(context.reader, decoder, contexts, context);
+            if (!skip.ok) {
+                context.appendDiagnostic(skip.diagnosticCode, skip.diagnosticMessage);
+                context.appendEstimatedRemainder(cabac.code, cabac.message);
+                return;
+            }
+
+            if (skip.value != 0) {
+                appendCabacPSkipMacroblock(context);
+            } else {
+                const H264CabacMacroblockSyntaxResult syntax =
+                    h264ReadCabacMacroblockSyntax(context, decoder, contexts);
+                if (!syntax.ok) {
+                    context.appendDiagnostic(syntax.diagnosticCode, syntax.diagnosticMessage);
+                    context.appendEstimatedRemainder(cabac.code, cabac.message);
+                    return;
+                }
+                const bool appended = h264AppendCabacMacroblockSyntaxSkeleton(context, syntax);
+                if (!appended) {
+                    const QString code = syntax.diagnosticCode.isEmpty()
+                        ? QStringLiteral("cabac_macroblock_syntax_incomplete")
+                        : syntax.diagnosticCode;
+                    const QString message = syntax.diagnosticMessage.isEmpty()
+                        ? QStringLiteral("CABAC P macroblock %1 decoded mb_type %2 outside the covered inter path.")
+                              .arg(context.currentAddress).arg(syntax.mbType)
+                        : syntax.diagnosticMessage;
+                    context.appendDiagnostic(code, message);
+                    context.appendEstimatedRemainder(cabac.code, cabac.message);
+                    return;
+                }
+                if (!syntax.complete) {
+                    context.appendDiagnostic(syntax.diagnosticCode, syntax.diagnosticMessage);
+                    context.appendEstimatedRemainder(cabac.code, cabac.message);
+                    return;
+                }
+            }
+
+            int terminateBin = 0;
+            if (!decoder.decodeTerminate(context.reader, &terminateBin)) {
+                context.appendDiagnostic(
+                    QStringLiteral("cabac_end_of_slice_failed"),
+                    QStringLiteral("CABAC terminate decoding failed after macroblock %1.")
+                        .arg(context.currentAddress - 1));
+                context.appendEstimatedRemainder(cabac.code, cabac.message);
+                return;
+            }
+            endOfSlice = terminateBin != 0;
+        }
+
+        if (!endOfSlice && context.currentAddress >= context.totalMacroblocks) {
+            context.appendDiagnostic(
+                QStringLiteral("cabac_end_of_slice_missing"),
+                QStringLiteral("CABAC P-slice reached the picture macroblock limit without end_of_slice_flag."));
+        }
+        if (endOfSlice && context.currentAddress < context.totalMacroblocks) {
+            context.appendEstimatedRemainder(
+                QStringLiteral("cabac_slice_ended_early"),
+                QStringLiteral("CABAC end_of_slice_flag was reached before all picture macroblocks; remaining addresses may belong to another slice."));
+        }
+        if (!context.slice.macroblocks.isEmpty()) {
+            context.appendDiagnostic(
+                QStringLiteral("cabac_p_slice_macroblocks_parsed"),
+                QStringLiteral("CABAC P-slice parsed %1 macroblocks through end_of_slice_flag or the picture boundary.")
+                    .arg(context.currentAddress - context.slice.firstMbInSlice));
+        }
+        return;
+    }
 
     const H264CabacMacroblockSyntaxResult syntax =
         h264ReadCabacMacroblockSyntax(context, decoder, contexts);

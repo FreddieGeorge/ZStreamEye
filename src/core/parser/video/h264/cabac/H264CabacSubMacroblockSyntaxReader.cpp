@@ -4,6 +4,7 @@
 #include "core/parser/video/h264/cabac/H264CabacDecoder.h"
 
 #include <cstdlib>
+#include <limits>
 
 namespace
 {
@@ -85,6 +86,45 @@ int p8x8MvdCtxIdxInc(const QVector<H264CabacMvdPair> &subMacroblockMvd,
         std::abs(mvdComponentValue(subMacroblockMvd, subMacroblockMvdValid, leftSubIndex, component))
         + std::abs(mvdComponentValue(subMacroblockMvd, subMacroblockMvdValid, topSubIndex, component));
     return mvdCtxIdxIncFromNeighborAbsMvd(neighborAbsMvd);
+}
+
+bool decodeMvdUeg3Suffix(BitReader &reader,
+                         H264CabacDecoder &decoder,
+                         int *value)
+{
+    constexpr int Ueg3Order = 3;
+    constexpr int MaxPrefixOneCount = 27;
+
+    qint64 decodedValue = 0;
+    int suffixBitCount = Ueg3Order;
+    for (int prefixOneCount = 0;; ++prefixOneCount) {
+        int bin = 0;
+        if (!decoder.decodeBypassBin(reader, &bin)) {
+            return false;
+        }
+        if (bin == 0) {
+            break;
+        }
+        if (prefixOneCount >= MaxPrefixOneCount) {
+            return false;
+        }
+        decodedValue += qint64{1} << suffixBitCount;
+        ++suffixBitCount;
+    }
+
+    for (int bit = suffixBitCount - 1; bit >= 0; --bit) {
+        int bin = 0;
+        if (!decoder.decodeBypassBin(reader, &bin)) {
+            return false;
+        }
+        decodedValue += qint64{bin} << bit;
+    }
+
+    if (decodedValue > std::numeric_limits<int>::max() - 9) {
+        return false;
+    }
+    *value = static_cast<int>(decodedValue);
+    return true;
 }
 }
 
@@ -323,63 +363,45 @@ H264CabacMvdResult h264ReadCabacMvdL0Component(BitReader &reader,
         return result;
     }
 
-    const int suffixCtxIdx = (component == 0 ? 40 : 47) + 3;
-    if (!contexts.isInitialized(suffixCtxIdx)) {
-        return failedMvdResult(
-            QStringLiteral("cabac_context_uninitialized"),
-            QStringLiteral("CABAC context %1 for non-zero mvd_l0 is not initialized in the covered context table.")
-                .arg(suffixCtxIdx),
-            suffixCtxIdx);
-    }
-
-    if (!decoder.decodeBin(reader, contexts, suffixCtxIdx, &bin)) {
-        return failedMvdResult(
-            QStringLiteral("cabac_bin_decode_failed"),
-            QStringLiteral("CABAC bin decoding failed while reading non-zero mvd_l0."),
-            suffixCtxIdx);
-    }
-    int absMvd = 1;
-    if (bin != 0) {
-        const int extensionCtxIdx = (component == 0 ? 40 : 47) + 4;
-        if (!contexts.isInitialized(extensionCtxIdx)) {
+    constexpr int suffixCtxOffsets[8] = {3, 4, 5, 6, 6, 6, 6, 6};
+    const int ctxBase = component == 0 ? 40 : 47;
+    int absMvd = 0;
+    for (int candidateAbsMvd = 1; candidateAbsMvd <= 8; ++candidateAbsMvd) {
+        const int suffixCtxIdx = ctxBase + suffixCtxOffsets[candidateAbsMvd - 1];
+        if (!contexts.isInitialized(suffixCtxIdx)) {
             return failedMvdResult(
                 QStringLiteral("cabac_context_uninitialized"),
-                QStringLiteral("CABAC context %1 for small non-zero mvd_l0 is not initialized in the covered context table.")
-                    .arg(extensionCtxIdx),
-                extensionCtxIdx);
+                QStringLiteral("CABAC context %1 for non-zero mvd_l0 is not initialized in the covered context table.")
+                    .arg(suffixCtxIdx),
+                suffixCtxIdx);
         }
-
-        if (!decoder.decodeBin(reader, contexts, extensionCtxIdx, &bin)) {
+        if (!decoder.decodeBin(reader, contexts, suffixCtxIdx, &bin)) {
             return failedMvdResult(
                 QStringLiteral("cabac_bin_decode_failed"),
-                QStringLiteral("CABAC bin decoding failed while reading small non-zero mvd_l0."),
-                extensionCtxIdx);
+                QStringLiteral("CABAC bin decoding failed while reading non-zero mvd_l0 prefix."),
+                suffixCtxIdx);
         }
         if (bin == 0) {
-            absMvd = 2;
-        } else {
-            if (!decoder.decodeBin(reader, contexts, extensionCtxIdx, &bin)) {
-                return failedMvdResult(
-                    QStringLiteral("cabac_bin_decode_failed"),
-                    QStringLiteral("CABAC bin decoding failed while reading small non-zero mvd_l0."),
-                    extensionCtxIdx);
-            }
-            if (bin == 0) {
-                absMvd = 3;
-            } else {
-                result.diagnosticCode = QStringLiteral("cabac_mvd_incomplete");
-                result.diagnosticMessage =
-                    QStringLiteral("CABAC mvd_l0 absolute values greater than three are not implemented.");
-                return result;
-            }
+            absMvd = candidateAbsMvd;
+            break;
         }
+    }
+    if (absMvd == 0) {
+        int ueg3Value = 0;
+        if (!decodeMvdUeg3Suffix(reader, decoder, &ueg3Value)) {
+            return failedMvdResult(
+                QStringLiteral("cabac_bin_decode_failed"),
+                QStringLiteral("CABAC bypass UEG3 decoding failed while reading mvd_l0."),
+                ctxBase + 6);
+        }
+        absMvd = 9 + ueg3Value;
     }
 
     int sign = 0;
     if (!decoder.decodeBypassBin(reader, &sign)) {
         return failedMvdResult(
             QStringLiteral("cabac_bin_decode_failed"),
-            QStringLiteral("CABAC bypass sign decoding failed while reading small non-zero mvd_l0."),
+            QStringLiteral("CABAC bypass sign decoding failed while reading non-zero mvd_l0."),
             ctxIdx);
     }
     result.complete = true;
