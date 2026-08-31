@@ -7,16 +7,9 @@
 #include <QLineF>
 #include <QOpenGLShader>
 #include <QPainter>
-#include <QPainterPath>
 #include <QResizeEvent>
 
 #include <algorithm>
-#include <cmath>
-
-namespace
-{
-constexpr double Pi = 3.14159265358979323846;
-}
 
 extern "C" {
 #include <libswscale/swscale.h>
@@ -394,8 +387,11 @@ void VideoCanvas::drawMotionVectors(QPainter &painter, const QRectF &videoRect)
         const QColor vectorColor = mv.list == 1
             ? QColor(255, 80, 220, 220)
             : QColor(80, 220, 255, 220);
-        painter.setPen(QPen(vectorColor, 1.4));
-        painter.setBrush(vectorColor);
+        QPen vectorPen(vectorColor, 1.0);
+        vectorPen.setCapStyle(Qt::RoundCap);
+        vectorPen.setJoinStyle(Qt::RoundJoin);
+        painter.setPen(vectorPen);
+        painter.setBrush(Qt::NoBrush);
 
         const QPointF currentCenter(mv.sourceX, mv.sourceY);
         const QPointF referenceBase(
@@ -415,18 +411,15 @@ void VideoCanvas::drawMotionVectors(QPainter &painter, const QRectF &videoRect)
 
         painter.drawLine(line);
 
-        const double angle = std::atan2(-(end.y() - start.y()), end.x() - start.x());
-        const qreal arrowSize = 7.0;
-        const QPointF arrowP1 = end - QPointF(std::cos(angle + Pi / 6.0) * arrowSize,
-                                               -std::sin(angle + Pi / 6.0) * arrowSize);
-        const QPointF arrowP2 = end - QPointF(std::cos(angle - Pi / 6.0) * arrowSize,
-                                               -std::sin(angle - Pi / 6.0) * arrowSize);
-        QPainterPath arrowHead;
-        arrowHead.moveTo(end);
-        arrowHead.lineTo(arrowP1);
-        arrowHead.lineTo(arrowP2);
-        arrowHead.closeSubpath();
-        painter.drawPath(arrowHead);
+        const QPointF direction = (end - start) / line.length();
+        const QPointF normal(-direction.y(), direction.x());
+        const qreal arrowLength = std::min<qreal>(4.0, line.length() * 0.65);
+        const qreal arrowHalfWidth = arrowLength * 0.5;
+        const QPointF arrowBase = end - direction * arrowLength;
+        const QPointF arrowP1 = arrowBase + normal * arrowHalfWidth;
+        const QPointF arrowP2 = arrowBase - normal * arrowHalfWidth;
+        painter.drawLine(end, arrowP1);
+        painter.drawLine(end, arrowP2);
     }
 
     painter.restore();
